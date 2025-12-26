@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import api from '../api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 function Login() {
-    const [email, setEmail] = useState('admin@demo.com'); // Pre-filled for demo
-    const [password, setPassword] = useState('Demo@123'); // Pre-filled for demo
+    const [email, setEmail] = useState('admin@demo.com');
+    const [password, setPassword] = useState('Demo@123');
     const [error, setError] = useState('');
     const navigate = useNavigate();
 
@@ -12,45 +12,52 @@ function Login() {
         e.preventDefault();
         try {
             const res = await api.post('/auth/login', { email, password });
-
-            // Save Token and User info
             localStorage.setItem('token', res.data.data.token);
             localStorage.setItem('user', JSON.stringify(res.data.data.user));
-
-            // Go to Dashboard
             navigate('/dashboard');
         } catch (err) {
-            setError('Invalid Credentials');
+            setError('Invalid email or password.');
         }
     };
 
     return (
-        <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ccc' }}>
-            <h2>SaaS Login</h2>
-            {error && <p style={{ color: 'red' }}>{error}</p>}
-            <form onSubmit={handleLogin}>
-                <div style={{ marginBottom: '10px' }}>
-                    <label>Email:</label><br />
-                    <input
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        style={{ width: '100%', padding: '8px' }}
-                    />
-                </div>
-                <div style={{ marginBottom: '10px' }}>
-                    <label>Password:</label><br />
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        style={{ width: '100%', padding: '8px' }}
-                    />
-                </div>
-                <button type="submit" style={{ width: '100%', padding: '10px', background: 'blue', color: 'white' }}>
-                    Login
-                </button>
-            </form>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="card">
+                <h2 style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                    Welcome Back
+                </h2>
+                <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '2rem' }}>
+                    Enter your credentials to access your workspace.
+                </p>
+
+                {error && <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem', borderRadius: '0.375rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
+
+                <form onSubmit={handleLogin}>
+                    <div>
+                        <label className="label">Email Address</label>
+                        <input
+                            type="email"
+                            className="input-field"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="label">Password</label>
+                        <input
+                            type="password"
+                            className="input-field"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                        />
+                    </div>
+                    <button type="submit" className="btn btn-primary">Sign In</button>
+                </form>
+
+                <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
+                    New organization? <Link to="/register" style={{ color: '#2563eb', fontWeight: '500' }}>Register here</Link>
+                </p>
+            </div>
         </div>
     );
 }
