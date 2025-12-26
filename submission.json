@@ -22,12 +22,21 @@
                         "email": "user1@demo.com",
                         "password": "User@123",
                         "role": "user"
+                    },
+                    {
+                        "email": "user2@demo.com",
+                        "password": "User@123",
+                        "role": "user"
                     }
                 ],
                 "projects": [
                     {
-                        "name": "Demo Project",
-                        "description": "Initial seed project"
+                        "name": "Project Alpha",
+                        "description": "First demo project"
+                    },
+                    {
+                        "name": "Project Beta",
+                        "description": "Second demo project"
                     }
                 ]
             }
