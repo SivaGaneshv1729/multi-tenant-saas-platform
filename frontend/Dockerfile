@@ -1,0 +1,14 @@
+# CHANGED: Using Node 22 to satisfy Vite requirements
+FROM node:22-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+EXPOSE 3000
+
+# Force the host and port directly in the command
+CMD ["npx", "vite", "--host", "0.0.0.0", "--port", "3000"]
