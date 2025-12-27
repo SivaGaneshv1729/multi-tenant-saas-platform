@@ -1,29 +1,52 @@
 # System Architecture
 
-## High-Level Overview
-The application follows a standard **3-Tier Architecture** containerized within Docker:
+## 1. High-Level Architecture
+The system follows a standard 3-tier architecture containerized via Docker.
 
-1.  **Presentation Layer (Frontend):**
-    * React SPA running on Nginx/Node (Port 3000).
-    * Communicates via REST API to the backend.
-2.  **Application Layer (Backend):**
-    * Express.js API (Port 5000).
-    * Stateless authentication using JWT.
-    * Handles business logic and tenant isolation.
-3.  **Data Layer (Database):**
-    * PostgreSQL 15 (Port 5432).
-    * Persistent storage via Docker Volumes.
 
-## Database Schema (ERD Description)
 
-* **Tenants:** `id (PK), name, subdomain, plan`
-* **Users:** `id (PK), tenant_id (FK), email, password, role`
-* **Projects:** `id (PK), tenant_id (FK), name, status`
-* **Tasks:** `id (PK), project_id (FK), tenant_id (FK), title, status`
+* **Client:** React SPA (Single Page Application).
+* **API Gateway/Server:** Node.js Express Server handling Auth, Logic, and DB connections.
+* **Data Store:** PostgreSQL Database with relational tables.
 
-*Constraint:* All tables (except Tenants) have a `tenant_id` Foreign Key to enforce ownership.
+## 2. Database Schema (ERD)
+The database uses a shared schema design where `tenants` is the root table, and all other tables reference it.
 
-## API Endpoint Strategy
-All endpoints follow the pattern `/api/resource`.
-* **Public:** `/api/auth/login`, `/api/health`
-* **Protected:** `/api/projects`, `/api/tasks` (Require `Bearer Token`)
+
+
+**Key Relationships:**
+* `Tenants` (1) --- (Many) `Users`
+* `Tenants` (1) --- (Many) `Projects`
+* `Projects` (1) --- (Many) `Tasks`
+* `Users` (1) --- (Many) `Tasks` (Assigned To)
+
+## 3. API Architecture
+The API is RESTful, returning JSON responses in the format `{ success: boolean, data: any }`.
+
+**Module: Authentication**
+1.  `POST /api/auth/register-tenant` (Public)
+2.  `POST /api/auth/login` (Public)
+3.  `GET /api/auth/me` (Protected)
+
+**Module: Tenants**
+4.  `GET /api/tenants` (Super Admin)
+5.  `GET /api/tenants/:id` (Admin)
+
+**Module: Users**
+6.  `POST /api/users` (Admin - Create User)
+7.  `GET /api/users` (List Users)
+8.  `PUT /api/users/:id` (Update Role)
+9.  `DELETE /api/users/:id` (Remove User)
+
+**Module: Projects**
+10. `GET /api/projects` (List)
+11. `POST /api/projects` (Create)
+12. `PUT /api/projects/:id` (Update)
+13. `DELETE /api/projects/:id` (Delete)
+
+**Module: Tasks**
+14. `GET /api/my-tasks` (Personal Board)
+15. `POST /api/projects/:id/tasks` (Create)
+16. `PATCH /api/tasks/:id/status` (Update Status)
+17. `PATCH /api/tasks/:id/claim` (Claim Task)
+18. `DELETE /api/tasks/:id` (Delete)
