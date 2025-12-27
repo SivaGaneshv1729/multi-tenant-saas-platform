@@ -1,99 +1,152 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+    Box, Button, Typography, Paper, Grid, TextField,
+    MenuItem, Chip, Stack, IconButton, Avatar, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions
+} from '@mui/material';
+import { ArrowBack, Delete, AccessTime, Add, FilterList } from '@mui/icons-material';
+import Layout from '../components/Layout';
 
 function ProjectDetails() {
     const { projectId } = useParams();
-    const [tasks, setTasks] = useState([]);
-    const [form, setForm] = useState({ title: '', priority: 'medium', dueDate: '' });
+    const navigate = useNavigate();
+    const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')));
 
-    useEffect(() => { fetchTasks(); }, [projectId]);
+    const [tasks, setTasks] = useState([]);
+    const [users, setUsers] = useState([]);
+    const [filter, setFilter] = useState('all'); // all, todo, in_progress, completed
+    const [open, setOpen] = useState(false); // Modal State
+
+    const [form, setForm] = useState({ title: '', priority: 'medium', dueDate: '', assignedTo: '' });
+
+    useEffect(() => { fetchTasks(); fetchUsers(); }, [projectId]);
 
     const fetchTasks = () => {
-        api.get(`/projects/${projectId}/tasks`)
-            .then(res => setTasks(res.data.data))
-            .catch(console.error);
+        api.get(`/projects/${projectId}/tasks`).then(res => setTasks(res.data.data));
     };
 
-    const handleAddTask = async (e) => {
-        e.preventDefault();
+    const fetchUsers = () => {
+        api.get('/users').then(res => setUsers(res.data.data));
+    };
+
+    const handleAddTask = async () => {
         try {
-            await api.post(`/projects/${projectId}/tasks`, form);
-            setForm({ title: '', priority: 'medium', dueDate: '' });
+            await api.post(`/projects/${projectId}/tasks`, { ...form, assignedTo: form.assignedTo || null });
+            setForm({ title: '', priority: 'medium', dueDate: '', assignedTo: '' });
+            setOpen(false);
             fetchTasks();
         } catch (err) { alert("Failed to add task"); }
     };
 
     const handleDelete = async (taskId) => {
-        // Note: We haven't exposed DELETE /tasks explicitly in the simplified server.js
-        // But if you added the 19 endpoints, this would be: api.delete(`/tasks/${taskId}`)
-        // For now, we'll mark it as 'completed' as a soft delete visual.
-        alert("To enable Delete, ensure the DELETE /api/tasks/:id endpoint is active in server.js");
+        if (!confirm("Are you sure you want to delete this task?")) return;
+        try {
+            await api.delete(`/tasks/${taskId}`);
+            fetchTasks(); // Refresh list immediately
+        } catch (err) {
+            alert(err.response?.data?.message || "Failed to delete task");
+        }
     };
 
-    const getPriorityColor = (p) => {
-        if (p === 'high') return '#fecaca'; // Red
-        if (p === 'medium') return '#fde68a'; // Yellow
-        return '#d1fae5'; // Green
+    const filteredTasks = tasks.filter(t => filter === 'all' ? true : t.status === filter);
+
+    const stats = {
+        total: tasks.length,
+        completed: tasks.filter(t => t.status === 'completed').length,
+        inProgress: tasks.filter(t => t.status === 'in_progress').length,
+        todo: tasks.filter(t => t.status === 'todo').length,
     };
 
     return (
-        <div style={{ maxWidth: '900px', margin: '2rem auto', padding: '0 1.5rem' }}>
-            <Link to="/dashboard" style={{ color: '#64748b', textDecoration: 'none', fontWeight: '500', marginBottom: '1.5rem', display: 'inline-block' }}>&larr; Back to Dashboard</Link>
+        <Layout
+            title="Project Workspace"
+            actions={
+                <Stack direction="row" spacing={2}>
+                    <Button variant="outlined" startIcon={<ArrowBack />} onClick={() => navigate('/dashboard')}>Back</Button>
+                    {/* Only Admin can add tasks */}
+                    {user?.role === 'tenant_admin' && (
+                        <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}>New Task</Button>
+                    )}
+                </Stack>
+            }
+        >
+            {/* STATUS FILTER CHIPS */}
+            <Stack direction="row" spacing={1} mb={3} alignItems="center">
+                <FilterList color="action" />
+                <Chip label={`All (${stats.total})`} onClick={() => setFilter('all')} color={filter === 'all' ? 'primary' : 'default'} clickable />
+                <Chip label={`To Do (${stats.todo})`} onClick={() => setFilter('todo')} color={filter === 'todo' ? 'primary' : 'default'} clickable />
+                <Chip label={`In Progress (${stats.inProgress})`} onClick={() => setFilter('in_progress')} color={filter === 'in_progress' ? 'info' : 'default'} clickable />
+                <Chip label={`Completed (${stats.completed})`} onClick={() => setFilter('completed')} color={filter === 'completed' ? 'success' : 'default'} clickable />
+            </Stack>
 
-            {/* TASK CREATION CARD */}
-            <div className="card" style={{ maxWidth: '100%', marginBottom: '2rem', border: '1px solid #e2e8f0', boxShadow: 'none' }}>
-                <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem', color: '#0f172a' }}>Add New Task</h2>
-                <form onSubmit={handleAddTask} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '10px', alignItems: 'end' }}>
-                    <div>
-                        <label className="label">Task Title</label>
-                        <input className="input-field" style={{ margin: 0 }} placeholder="e.g. Fix Login Bug" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} required />
-                    </div>
-                    <div>
-                        <label className="label">Priority</label>
-                        <select className="input-field" style={{ margin: 0 }} value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="label">Due Date</label>
-                        <input type="date" className="input-field" style={{ margin: 0 }} value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
-                    </div>
-                    <button type="submit" className="btn btn-primary" style={{ height: '42px' }}>Add</button>
-                </form>
-            </div>
+            <Grid container spacing={2}>
+                {filteredTasks.map(task => {
+                    const assignee = users.find(u => u.id === task.assigned_to);
+                    return (
+                        <Grid item xs={12} key={task.id}>
+                            <Paper sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #334155', '&:hover': { bgcolor: 'action.hover' } }}>
+                                <Box>
+                                    <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+                                        <Typography variant="subtitle1" fontWeight="bold">{task.title}</Typography>
+                                        <Chip label={task.priority} size="small" color={task.priority === 'high' ? 'error' : 'default'} variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />
+                                    </Stack>
+                                    <Stack direction="row" spacing={2} alignItems="center">
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                            <AccessTime fontSize="inherit" /> {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No Date'}
+                                        </Typography>
+                                        {assignee ? (
+                                            <Chip avatar={<Avatar sx={{ width: 16, height: 16 }}>{assignee.full_name[0]}</Avatar>} label={assignee.full_name} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.7rem' }} />
+                                        ) : (
+                                            <Typography variant="caption" color="text.disabled">Unassigned</Typography>
+                                        )}
+                                    </Stack>
+                                </Box>
 
-            {/* TASK LIST */}
-            <h3 style={{ color: '#64748b', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '1rem' }}>Active Tasks</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {tasks.map(task => (
-                    <div key={task.id} style={{ padding: '1.25rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }}>
-                        <div>
-                            <div style={{ fontWeight: '600', color: '#1e293b', marginBottom: '0.25rem' }}>{task.title}</div>
-                            <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                                Created: {new Date(task.created_at).toLocaleDateString()}
-                                {task.due_date && ` • Due: ${new Date(task.due_date).toLocaleDateString()}`}
-                            </div>
-                        </div>
+                                <Stack direction="row" alignItems="center" spacing={2}>
+                                    <Chip label={task.status.replace('_', ' ')} color={task.status === 'completed' ? 'success' : task.status === 'in_progress' ? 'info' : 'default'} size="small" />
+                                    {/* Only Admin can delete */}
+                                    {user?.role === 'tenant_admin' && (
+                                        <IconButton size="small" color="error" onClick={() => handleDelete(task.id)}><Delete fontSize="small" /></IconButton>
+                                    )}
+                                </Stack>
+                            </Paper>
+                        </Grid>
+                    );
+                })}
+                {filteredTasks.length === 0 && (
+                    <Grid item xs={12}><Typography color="text.secondary" textAlign="center" py={4}>No tasks match this filter.</Typography></Grid>
+                )}
+            </Grid>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <span style={{
-                                background: getPriorityColor(task.priority),
-                                color: '#1e293b', padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'capitalize'
-                            }}>
-                                {task.priority}
-                            </span>
-                            <button onClick={() => handleDelete(task.id)} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>
-                                &times;
-                            </button>
-                        </div>
-                    </div>
-                ))}
-                {tasks.length === 0 && <div style={{ textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', padding: '2rem' }}>No tasks found. Start by adding one above.</div>}
-            </div>
-        </div>
+            {/* CREATE TASK MODAL */}
+            <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
+                <DialogTitle>Create New Task</DialogTitle>
+                <DialogContent>
+                    <TextField autoFocus margin="dense" label="Task Title" fullWidth value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+                    <Grid container spacing={2} mt={0.5}>
+                        <Grid item xs={6}>
+                            <TextField select fullWidth label="Priority" value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}>
+                                <MenuItem value="low">Low</MenuItem>
+                                <MenuItem value="medium">Medium</MenuItem>
+                                <MenuItem value="high">High</MenuItem>
+                            </TextField>
+                        </Grid>
+                        <Grid item xs={6}>
+                            <TextField type="date" fullWidth label="Due Date" InputLabelProps={{ shrink: true }} value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} />
+                        </Grid>
+                    </Grid>
+                    <TextField select fullWidth label="Assign To" margin="dense" value={form.assignedTo} onChange={e => setForm({ ...form, assignedTo: e.target.value })} sx={{ mt: 2 }}>
+                        <MenuItem value=""><em>Unassigned</em></MenuItem>
+                        {users.map(u => <MenuItem key={u.id} value={u.id}>{u.full_name}</MenuItem>)}
+                    </TextField>
+                </DialogContent>
+                <DialogActions sx={{ p: 2 }}>
+                    <Button onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button variant="contained" onClick={handleAddTask}>Create Task</Button>
+                </DialogActions>
+            </Dialog>
+        </Layout>
     );
 }
 
