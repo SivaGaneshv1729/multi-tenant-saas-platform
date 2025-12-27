@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import api from '../api';
 import { useNavigate, Link } from 'react-router-dom';
+import { Box, Button, TextField, Typography, Paper, Alert, Grid } from '@mui/material';
 
 function Login() {
     const [email, setEmail] = useState('admin@demo.com');
@@ -16,49 +17,54 @@ function Login() {
             localStorage.setItem('user', JSON.stringify(res.data.data.user));
             navigate('/dashboard');
         } catch (err) {
-            setError('Invalid email or password.');
+            setError(err.response?.data?.message || 'Invalid credentials');
         }
     };
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div className="card">
-                <h2 style={{ textAlign: 'center', marginBottom: '0.5rem', fontSize: '1.5rem', fontWeight: 'bold' }}>
-                    Welcome Back
-                </h2>
-                <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '2rem' }}>
-                    Enter your credentials to access your workspace.
-                </p>
+        <Grid container component="main" sx={{ height: '100vh' }}>
+            <Grid item xs={12} sm={8} md={5} component={Paper} elevation={6} square sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', p: 4 }}>
+                <Box sx={{ my: 8, mx: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <Typography component="h1" variant="h4" fontWeight="bold" gutterBottom>
+                        Nexus SaaS
+                    </Typography>
+                    <Typography color="text.secondary" mb={4}>Sign in to your dashboard</Typography>
 
-                {error && <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem', borderRadius: '0.375rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
-
-                <form onSubmit={handleLogin}>
-                    <div>
-                        <label className="label">Email Address</label>
-                        <input
-                            type="email"
-                            className="input-field"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                    <Box component="form" onSubmit={handleLogin} sx={{ mt: 1, width: '100%' }}>
+                        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                        <TextField
+                            margin="normal" required fullWidth label="Email Address"
+                            autoFocus value={email} onChange={(e) => setEmail(e.target.value)}
                         />
-                    </div>
-                    <div>
-                        <label className="label">Password</label>
-                        <input
-                            type="password"
-                            className="input-field"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                        <TextField
+                            margin="normal" required fullWidth label="Password" type="password"
+                            value={password} onChange={(e) => setPassword(e.target.value)}
                         />
-                    </div>
-                    <button type="submit" className="btn btn-primary">Sign In</button>
-                </form>
-
-                <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>
-                    New organization? <Link to="/register" style={{ color: '#2563eb', fontWeight: '500' }}>Register here</Link>
-                </p>
-            </div>
-        </div>
+                        <Button type="submit" fullWidth variant="contained" sx={{ mt: 3, mb: 2, py: 1.5 }}>
+                            Sign In
+                        </Button>
+                        <Grid container>
+                            <Grid item xs>
+                                <Link to="/register" style={{ color: '#3b82f6', textDecoration: 'none' }}>
+                                    Don't have an account? Sign Up
+                                </Link>
+                            </Grid>
+                        </Grid>
+                    </Box>
+                </Box>
+            </Grid>
+            <Grid item xs={false} sm={4} md={7} sx={{
+                backgroundImage: 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+                <Box sx={{ color: 'white', textAlign: 'center' }}>
+                    <Typography variant="h3" fontWeight="bold">Enterprise Grade</Typography>
+                    <Typography variant="h6" sx={{ opacity: 0.7 }}>Multi-tenant Architecture</Typography>
+                </Box>
+            </Grid>
+        </Grid>
     );
 }
 

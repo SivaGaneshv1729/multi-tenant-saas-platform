@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* --- 1. Design Tokens & Reset --- */
+:root {
+    /* Color Palette - Dark Slate Theme */
+    --bg-app: #0f172a;
+    /* Deepest background */
+    --bg-panel: #1e293b;
+    /* Sidebars, Cards */
+    --bg-element: #334155;
+    /* Inputs, hover states */
+
+    --text-primary: #f8fafc;
+    /* Main headings */
+    --text-secondary: #94a3b8;
+    /* Subtitles, labels */
+    --text-tertiary: #64748b;
+    /* Subtle text */
+
+    --brand-primary: #3b82f6;
+    /* Vibrant Blue */
+    --brand-hover: #2563eb;
+
+    --border-subtle: #334155;
+    /* Card borders */
+
+    --success-bg: rgba(16, 185, 129, 0.15);
+    --success-text: #34d399;
+    --warning-bg: rgba(245, 158, 11, 0.15);
+    --warning-text: #fbbf24;
+    --danger-bg: rgba(239, 68, 68, 0.15);
+    --danger-text: #f87171;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+}
+
+/* --- 2. Layout Structure (The "Clumsy Fixer") --- */
+.app-layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    /* Prevent outer scroll */
+}
+
+.sidebar-panel {
+    width: 280px;
+    background-color: var(--bg-panel);
+    border-right: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    /* Prevent squishing */
+}
+
+.main-content-area {
+    flex: 1;
+    overflow-y: auto;
+    /* Internal scroll only */
+    padding: 2.5rem;
+    background-color: var(--bg-app);
+}
+
+/* --- 3. Component Classes --- */
+
+/* Modern Card */
+.glass-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    /* Modern rounded corners */
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+    border-color: var(--text-secondary);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 20px -3px rgba(0, 0, 0, 0.3);
+}
+
+/* Buttons */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.25rem;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    gap: 8px;
+    letter-spacing: 0.025em;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--brand-primary), var(--brand-hover));
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+}
+
+.btn-primary:hover {
+    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+    transform: translateY(-1px);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+}
+
+.btn-ghost:hover {
+    background: var(--bg-element);
+    color: var(--text-primary);
+}
+
+/* Inputs */
+.modern-input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background-color: var(--bg-app);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    transition: all 0.2s;
+    margin-bottom: 1rem;
+}
+
+.modern-input:focus {
+    outline: none;
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badge-active {
+    background: var(--success-bg);
+    color: var(--success-text);
+}
+
+.badge-pending {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+}
