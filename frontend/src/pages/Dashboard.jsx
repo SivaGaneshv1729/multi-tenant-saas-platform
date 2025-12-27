@@ -1,9 +1,16 @@
 import { useEffect, useState } from 'react';
-import api from '../api';
 import { useNavigate } from 'react-router-dom';
+import api from '../api';
+import {
+    Grid, Paper, Typography, Box, Stack, CircularProgress, Avatar, Chip, Button, Tooltip, LinearProgress
+} from '@mui/material';
+import { Business, CheckCircle, Folder, People, AssignmentTurnedIn } from '@mui/icons-material';
+import Layout from '../components/Layout';
 
 function Dashboard() {
-    const [data, setData] = useState([]); // Stores Projects OR Tenants
+    const [stats, setStats] = useState(null);
+    const [listData, setListData] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [user, setUser] = useState(null);
     const navigate = useNavigate();
 
@@ -11,124 +18,161 @@ function Dashboard() {
         const userData = JSON.parse(localStorage.getItem('user'));
         if (!userData) { navigate('/login'); return; }
         setUser(userData);
-
-        // FETCH DATA BASED ON ROLE
-        if (userData.role === 'super_admin') {
-            // Super Admin sees Tenants
-            api.get('/tenants').then(res => setData(res.data.data.tenants)).catch(console.error);
-        } else {
-            // Regular Users see Projects
-            api.get('/projects').then(res => setData(res.data.data)).catch(console.error);
-        }
+        fetchData(userData);
     }, [navigate]);
 
-    const handleLogout = () => {
-        localStorage.clear();
-        navigate('/login');
+    const fetchData = async (userData) => {
+        try {
+            setLoading(true);
+            const statsRes = await api.get('/dashboard/stats');
+            setStats(statsRes.data.data);
+
+            if (userData.role === 'super_admin') {
+                const res = await api.get('/tenants');
+                setListData(res.data.data.tenants || []);
+            } else {
+                const res = await api.get('/projects');
+                setListData(res.data.data || []);
+            }
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
     };
 
-    const handleCreateProject = async () => {
-        const name = prompt("Enter project name:");
-        const desc = prompt("Enter description:");
-        if (!name) return;
-        try {
-            await api.post('/projects', { name, description: desc });
-            window.location.reload();
-        } catch (err) { alert(err.response?.data?.message || "Error"); }
+    // --- COMPONENT: Interactive Stat Bar ---
+    const TaskStatBar = ({ tasks }) => {
+        if (!tasks || tasks.total === 0) return <Typography variant="body2" color="text.secondary">No active tasks tracked.</Typography>;
+
+        // Calculate Percentages
+        const todoPct = (tasks.todo / tasks.total) * 100;
+        const inpPct = (tasks.in_progress / tasks.total) * 100;
+        const donePct = (tasks.completed / tasks.total) * 100;
+
+        return (
+            <Box sx={{ width: '100%', mt: 2 }}>
+                {/* The Visual Bar */}
+                <Box sx={{ display: 'flex', height: 12, borderRadius: 4, overflow: 'hidden', bgcolor: '#e2e8f0' }}>
+                    <Tooltip title={`Todo: ${tasks.todo}`}><Box sx={{ width: `${todoPct}%`, bgcolor: '#3b82f6', transition: 'width 0.5s' }} /></Tooltip>
+                    <Tooltip title={`In Progress: ${tasks.in_progress}`}><Box sx={{ width: `${inpPct}%`, bgcolor: '#f59e0b', transition: 'width 0.5s' }} /></Tooltip>
+                    <Tooltip title={`Done: ${tasks.completed}`}><Box sx={{ width: `${donePct}%`, bgcolor: '#10b981', transition: 'width 0.5s' }} /></Tooltip>
+                </Box>
+
+                {/* The Legend */}
+                <Stack direction="row" spacing={3} mt={2} justifyContent="center">
+                    <Stack alignItems="center">
+                        <Typography variant="h6" fontWeight="bold" color="primary.main">{tasks.todo}</Typography>
+                        <Typography variant="caption" color="text.secondary">To Do</Typography>
+                    </Stack>
+                    <Stack alignItems="center">
+                        <Typography variant="h6" fontWeight="bold" color="warning.main">{tasks.in_progress}</Typography>
+                        <Typography variant="caption" color="text.secondary">In Progress</Typography>
+                    </Stack>
+                    <Stack alignItems="center">
+                        <Typography variant="h6" fontWeight="bold" color="success.main">{tasks.completed}</Typography>
+                        <Typography variant="caption" color="text.secondary">Completed</Typography>
+                    </Stack>
+                </Stack>
+            </Box>
+        );
     };
+
+    if (loading || !stats) return <Layout title="Dashboard"><Box sx={{ p: 5, display: 'flex', justifyContent: 'center' }}><CircularProgress /></Box></Layout>;
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f8fafc' }}>
-            {/* PROFESSIONAL NAVBAR */}
-            <nav style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                    <div style={{ fontWeight: '800', fontSize: '1.5rem', color: '#0f172a', letterSpacing: '-0.5px' }}>SaaS<span style={{ color: '#3b82f6' }}>Corp</span></div>
-                    {user?.role === 'tenant_admin' && (
-                        <button onClick={() => navigate('/users')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontWeight: '500' }}>Manage Team</button>
-                    )}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.875rem', fontWeight: '600', color: '#0f172a' }}>{user?.email}</div>
-                        <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{user?.role?.replace('_', ' ')}</div>
-                    </div>
-                    <button onClick={handleLogout} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontWeight: '500', fontSize: '0.875rem' }}>Logout</button>
-                </div>
-            </nav>
+        <Layout title={user?.role === 'super_admin' ? 'System Overview' : 'Dashboard'}>
 
-            <main style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 2rem' }}>
+            {/* SUPER ADMIN VIEW */}
+            {user?.role === 'super_admin' ? (
+                <Grid container spacing={3} mb={4}>
+                    <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 4, border: '1px solid #334155' }}>
+                            <Stack direction="row" alignItems="center" spacing={2} mb={1}>
+                                <Business fontSize="large" color="primary" />
+                                <Typography variant="h6" color="text.secondary">Total Tenants</Typography>
+                            </Stack>
+                            <Typography variant="h2" fontWeight="800">{stats.tenants}</Typography>
+                        </Paper>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 4, border: '1px solid #334155' }}>
+                            <Stack direction="row" alignItems="center" spacing={2} mb={1}>
+                                <CheckCircle fontSize="large" color="success" />
+                                <Typography variant="h6" color="text.secondary">System Health</Typography>
+                            </Stack>
+                            <Typography variant="h2" fontWeight="800" color="success.main">100%</Typography>
+                        </Paper>
+                    </Grid>
+                </Grid>
+            ) : (
+                /* USER / TENANT ADMIN VIEW */
+                <Grid container spacing={3} mb={4}>
+                    <Grid item xs={12} md={4}>
+                        <Paper sx={{ p: 3, border: '1px solid #334155', height: '100%' }}>
+                            <Stack direction="row" justifyContent="space-between" mb={2}>
+                                <Typography variant="subtitle1" color="text.secondary">Total Projects</Typography>
+                                <Folder color="primary" />
+                            </Stack>
+                            <Typography variant="h3" fontWeight="700">{stats.totalProjects}</Typography>
+                        </Paper>
+                    </Grid>
 
-                {/* HEADER SECTION */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                    <div>
-                        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '0.5rem' }}>
-                            {user?.role === 'super_admin' ? 'All Tenants' : 'Dashboard'}
-                        </h1>
-                        <p style={{ color: '#64748b' }}>Welcome back to your workspace.</p>
-                    </div>
-                    {user?.role !== 'super_admin' && (
-                        <button onClick={handleCreateProject} className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span>+</span> Create Project
-                        </button>
-                    )}
-                </div>
+                    <Grid item xs={12} md={4}>
+                        <Paper sx={{ p: 3, border: '1px solid #334155', height: '100%' }}>
+                            <Stack direction="row" justifyContent="space-between" mb={2}>
+                                <Typography variant="subtitle1" color="text.secondary">Team Members</Typography>
+                                <People color="info" />
+                            </Stack>
+                            <Typography variant="h3" fontWeight="700">{stats.totalUsers}</Typography>
+                        </Paper>
+                    </Grid>
 
-                {/* CONTENT GRID */}
-                {data.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '4rem', background: 'white', borderRadius: '12px', border: '2px dashed #e2e8f0' }}>
-                        <p style={{ color: '#94a3b8', fontSize: '1.1rem' }}>No items found.</p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
-                        {data.map(item => (
-                            <div key={item.id} style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column' }}>
+                    {/* DYNAMIC TASK CHART */}
+                    <Grid item xs={12} md={4}>
+                        <Paper sx={{ p: 3, border: '1px solid #334155', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <Stack direction="row" alignItems="center" spacing={1} mb={1}>
+                                <AssignmentTurnedIn color="action" />
+                                <Typography variant="subtitle1" fontWeight="bold">
+                                    {user.role === 'tenant_admin' ? 'All Project Tasks' : 'My Task Status'}
+                                </Typography>
+                            </Stack>
+                            <TaskStatBar tasks={stats.tasks} />
+                        </Paper>
+                    </Grid>
+                </Grid>
+            )}
 
-                                {/* CARD HEADER */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                                    <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>{item.name}</h3>
-                                    <span style={{
-                                        background: item.status === 'active' ? '#dcfce7' : '#f1f5f9',
-                                        color: item.status === 'active' ? '#166534' : '#475569',
-                                        padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '600', textTransform: 'uppercase'
-                                    }}>
-                                        {item.status}
-                                    </span>
-                                </div>
+            {/* RECENT LIST */}
+            <Typography variant="h6" fontWeight="bold" mb={2}>
+                {user?.role === 'super_admin' ? 'All Organizations' : 'Recent Projects'}
+            </Typography>
 
-                                {/* CARD BODY */}
-                                <div style={{ flex: 1 }}>
-                                    <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '1.5rem' }}>
-                                        {item.description || (item.subdomain ? `Subdomain: ${item.subdomain}` : 'No description provided.')}
-                                    </p>
-
-                                    {/* Super Admin Specifics */}
-                                    {user?.role === 'super_admin' && (
-                                        <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '8px', fontSize: '0.85rem', color: '#475569', marginBottom: '1rem' }}>
-                                            <div>Plan: <strong>{item.subscription_plan}</strong></div>
-                                            <div>Users: {item.max_users} limit</div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* CARD FOOTER */}
-                                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1rem', marginTop: 'auto' }}>
-                                    {user?.role !== 'super_admin' ? (
-                                        <button
-                                            onClick={() => navigate(`/projects/${item.id}`)}
-                                            style={{ width: '100%', padding: '0.6rem', background: '#eff6ff', color: '#2563eb', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}
-                                        >
-                                            View Tasks &rarr;
-                                        </button>
-                                    ) : (
-                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center' }}>Tenant ID: {item.id.substring(0, 8)}...</div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </main>
-        </div>
+            {listData.length === 0 ? (
+                <Paper sx={{ p: 6, textAlign: 'center', borderStyle: 'dashed', borderColor: 'divider' }}>
+                    <Typography color="text.secondary">No items found.</Typography>
+                </Paper>
+            ) : (
+                <Grid container spacing={3}>
+                    {listData.map((item) => (
+                        <Grid item xs={12} md={6} lg={4} key={item.id}>
+                            <Paper sx={{ p: 3, border: '1px solid #334155', '&:hover': { boxShadow: 6, borderColor: 'primary.main' } }}>
+                                <Stack direction="row" justifyContent="space-between" mb={2}>
+                                    <Avatar variant="rounded" sx={{ bgcolor: 'primary.main' }}>{item.name[0]}</Avatar>
+                                    <Chip label={item.status} size="small" color="success" variant="outlined" sx={{ textTransform: 'uppercase', fontSize: '0.6rem' }} />
+                                </Stack>
+                                <Typography variant="h6" fontWeight="bold" gutterBottom>{item.name}</Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                    {item.description || (item.subdomain ? `Domain: ${item.subdomain}` : 'No description')}
+                                </Typography>
+                                {user?.role !== 'super_admin' ? (
+                                    <Button size="small" variant="outlined" onClick={() => navigate(`/projects/${item.id}`)}>Open Workspace</Button>
+                                ) : (
+                                    <Typography variant="caption" color="text.secondary">ID: {item.id.substring(0, 8)}</Typography>
+                                )}
+                            </Paper>
+                        </Grid>
+                    ))}
+                </Grid>
+            )}
+        </Layout>
     );
 }
 
