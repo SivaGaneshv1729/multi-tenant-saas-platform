@@ -83,19 +83,39 @@ app.post('/api/auth/register-tenant', async (req, res) => {
     }
 });
 
-// API 2: Login
+// API 2: Login 
 app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body;
-    try {
-        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-        const user = result.rows[0];
+    const { email, password, subdomain } = req.body; // Subdomain is now expected
 
+    try {
+        let user;
+
+        // SCENARIO 1: Super Admin Login (No subdomain or "system" subdomain)
+        if (!subdomain || subdomain === 'system') {
+            const saResult = await pool.query('SELECT * FROM users WHERE email = $1 AND role = $2', [email, 'super_admin']);
+            user = saResult.rows[0];
+        }
+        // SCENARIO 2: Tenant User Login (Must have valid subdomain)
+        else {
+            // 1. Find Tenant ID from Subdomain
+            const tenantRes = await pool.query('SELECT id FROM tenants WHERE subdomain = $1', [subdomain]);
+            if (tenantRes.rows.length === 0) {
+                return res.status(404).json({ success: false, message: "Tenant/Subdomain not found" });
+            }
+            const tenantId = tenantRes.rows[0].id;
+
+            // 2. Find User in that specific Tenant
+            const userRes = await pool.query('SELECT * FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId]);
+            user = userRes.rows[0];
+        }
+
+        // Common Validation
         if (!user) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
         const validPassword = await bcrypt.compare(password, user.password_hash);
         if (!validPassword) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
-        // JWT Payload
+        // Generate Token
         const token = jwt.sign(
             { userId: user.id, tenantId: user.tenant_id, role: user.role },
             process.env.JWT_SECRET,

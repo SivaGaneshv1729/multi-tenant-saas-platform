@@ -1,12 +1,16 @@
 import axios from 'axios';
 
-// Create Axios instance
+// FIX: Use import.meta.env for Vite, with a fallback to localhost
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const api = axios.create({
-    // Since we are accessing from the browser, we use localhost:5000
-    baseURL: 'http://localhost:5000/api',
+    baseURL: baseURL,
+    headers: {
+        'Content-Type': 'application/json',
+    },
 });
 
-// 1. Request Interceptor: Attach Token
+// Request Interceptor: Add Token to every request
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
@@ -18,15 +22,17 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// 2. Response Interceptor: Handle 401 (Logout)
+// Response Interceptor: Handle Token Expiry (401)
 api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response && error.response.status === 401) {
-            // Token expired or invalid
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-            window.location.href = '/login';
+            // Redirect to login if not already there
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+                window.location.href = '/login';
+            }
         }
         return Promise.reject(error);
     }

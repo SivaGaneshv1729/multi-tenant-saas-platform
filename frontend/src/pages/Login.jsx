@@ -1,70 +1,129 @@
 import { useState } from 'react';
-import api from '../api';
 import { useNavigate, Link } from 'react-router-dom';
-import { Box, Button, TextField, Typography, Paper, Alert, Grid } from '@mui/material';
+import api from '../api';
+import {
+    Container, Paper, TextField, Button, Typography, Box,
+    InputAdornment, Alert, CircularProgress, IconButton
+} from '@mui/material';
+import { Business, Email, Lock, Visibility, VisibilityOff } from '@mui/icons-material';
 
 function Login() {
-    const [email, setEmail] = useState('admin@demo.com');
-    const [password, setPassword] = useState('Demo@123');
+    const [formData, setFormData] = useState({ email: '', password: '', subdomain: '' });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false); // State for toggle
     const navigate = useNavigate();
 
-    const handleLogin = async (e) => {
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
+        setError('');
+
         try {
-            const res = await api.post('/auth/login', { email, password });
+            const res = await api.post('/auth/login', formData);
             localStorage.setItem('token', res.data.data.token);
             localStorage.setItem('user', JSON.stringify(res.data.data.user));
             navigate('/dashboard');
         } catch (err) {
-            setError(err.response?.data?.message || 'Invalid credentials');
+            setError(err.response?.data?.message || 'Login failed');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <Grid container component="main" sx={{ height: '100vh' }}>
-            <Grid item xs={12} sm={8} md={5} component={Paper} elevation={6} square sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', p: 4 }}>
-                <Box sx={{ my: 8, mx: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography component="h1" variant="h4" fontWeight="bold" gutterBottom>
-                        Nexus SaaS
-                    </Typography>
-                    <Typography color="text.secondary" mb={4}>Sign in to your dashboard</Typography>
+        <Container maxWidth="xs" sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Paper elevation={6} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
+                <Typography variant="h5" align="center" fontWeight="bold" gutterBottom color="primary">
+                    Welcome Back
+                </Typography>
+                <Typography variant="body2" align="center" color="text.secondary" mb={3}>
+                    Sign in to your workspace
+                </Typography>
 
-                    <Box component="form" onSubmit={handleLogin} sx={{ mt: 1, width: '100%' }}>
-                        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                        <TextField
-                            margin="normal" required fullWidth label="Email Address"
-                            autoFocus value={email} onChange={(e) => setEmail(e.target.value)}
-                        />
-                        <TextField
-                            margin="normal" required fullWidth label="Password" type="password"
-                            value={password} onChange={(e) => setPassword(e.target.value)}
-                        />
-                        <Button type="submit" fullWidth variant="contained" sx={{ mt: 3, mb: 2, py: 1.5 }}>
-                            Sign In
-                        </Button>
-                        <Grid container>
-                            <Grid item xs>
-                                <Link to="/register" style={{ color: '#3b82f6', textDecoration: 'none' }}>
-                                    Don't have an account? Sign Up
-                                </Link>
-                            </Grid>
-                        </Grid>
+                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+                <Box component="form" onSubmit={handleSubmit}>
+                    {/* SUBDOMAIN INPUT */}
+                    <TextField
+                        fullWidth
+                        required
+                        label="Workspace Subdomain"
+                        name="subdomain"
+                        placeholder="e.g. acme"
+                        value={formData.subdomain}
+                        onChange={handleChange}
+                        margin="normal"
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start"><Business color="action" /></InputAdornment>,
+                        }}
+                        helperText="Leave empty if you are a System Admin"
+                    />
+
+                    {/* EMAIL INPUT */}
+                    <TextField
+                        fullWidth
+                        required
+                        label="Email Address"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        margin="normal"
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start"><Email color="action" /></InputAdornment>,
+                        }}
+                    />
+
+                    {/* PASSWORD INPUT WITH EYE ICON */}
+                    <TextField
+                        fullWidth
+                        required
+                        label="Password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'} // Toggle type
+                        value={formData.password}
+                        onChange={handleChange}
+                        margin="normal"
+                        InputProps={{
+                            startAdornment: <InputAdornment position="start"><Lock color="action" /></InputAdornment>,
+                            endAdornment: (
+                                <InputAdornment position="end">
+                                    <IconButton
+                                        aria-label="toggle password visibility"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        edge="end"
+                                    >
+                                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                                    </IconButton>
+                                </InputAdornment>
+                            )
+                        }}
+                    />
+
+                    <Button
+                        fullWidth
+                        type="submit"
+                        variant="contained"
+                        size="large"
+                        sx={{ mt: 3, mb: 2, height: 48, fontWeight: 'bold' }}
+                        disabled={loading}
+                    >
+                        {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+                    </Button>
+
+                    <Box textAlign="center" mt={2}>
+                        <Link to="/register" style={{ textDecoration: 'none', color: '#1976d2', fontSize: '0.9rem' }}>
+                            Register new organization
+                        </Link>
                     </Box>
                 </Box>
-            </Grid>
-            <Grid item xs={false} sm={4} md={7} sx={{
-                backgroundImage: 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }}>
-                <Box sx={{ color: 'white', textAlign: 'center' }}>
-                    <Typography variant="h3" fontWeight="bold">Enterprise Grade</Typography>
-                    <Typography variant="h6" sx={{ opacity: 0.7 }}>Multi-tenant Architecture</Typography>
-                </Box>
-            </Grid>
-        </Grid>
+            </Paper>
+        </Container>
     );
 }
 

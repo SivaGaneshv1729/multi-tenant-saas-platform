@@ -160,7 +160,7 @@ function Dashboard() {
                                 </Stack>
                                 <Typography variant="h6" fontWeight="bold" gutterBottom>{item.name}</Typography>
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                    {item.description || (item.subdomain ? `Domain: ${item.subdomain}` : 'No description')}
+                                    {item.description || (item.subdomain ? `Domain: ${item.subdomain}.saas.com` : 'No description')}
                                 </Typography>
                                 {user?.role !== 'super_admin' ? (
                                     <Button size="small" variant="outlined" onClick={() => navigate(`/projects/${item.id}`)}>Open Workspace</Button>

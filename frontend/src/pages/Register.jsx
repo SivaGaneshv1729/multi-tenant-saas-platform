@@ -1,84 +1,201 @@
 import { useState } from 'react';
-import api from '../api';
 import { useNavigate, Link } from 'react-router-dom';
-import { Box, Button, TextField, Typography, Paper, Alert, Grid, InputAdornment } from '@mui/material';
-import { Business, Person, Email, Lock, Domain } from '@mui/icons-material';
+import api from '../api';
+import {
+    Container, Paper, TextField, Button, Typography, Box,
+    InputAdornment, Alert, CircularProgress, Stack, IconButton
+} from '@mui/material';
+import { Business, Email, Lock, Person, Dns, Visibility, VisibilityOff } from '@mui/icons-material';
 
 function Register() {
-    const [form, setForm] = useState({
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    // Visibility States
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    const [formData, setFormData] = useState({
         tenantName: '',
         subdomain: '',
-        fullName: '',
-        email: '',
-        password: ''
+        adminFullName: '',
+        adminEmail: '',
+        adminPassword: '',
+        confirmPassword: ''
     });
-    const [error, setError] = useState('');
-    const [loading, setLoading] = useState(false);
-    const navigate = useNavigate();
 
-    const handleRegister = async (e) => {
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
         setError('');
 
-        // Regex: lowercase letters and numbers only
-        if (!/^[a-z0-9]+$/.test(form.subdomain)) {
-            setError('Subdomain must be lowercase letters and numbers only (no spaces).');
-            setLoading(false);
+        // Client-side validation
+        if (formData.adminPassword !== formData.confirmPassword) {
+            setError("Passwords do not match");
             return;
         }
 
+        setLoading(true);
         try {
-            // FIX: Mapping 'email' to 'adminEmail' to match backend expectation
-            await api.post('/auth/register-tenant', {
-                tenantName: form.tenantName,
-                subdomain: form.subdomain,
-                adminEmail: form.email,
-                adminPassword: form.password,
-                adminFullName: form.fullName
-            });
-            alert('Registration Successful! Please Login.');
+            // Remove confirmPassword before sending to API
+            const { confirmPassword, ...payload } = formData;
+
+            await api.post('/auth/register-tenant', payload);
+            alert("Registration successful! Please login.");
             navigate('/login');
         } catch (err) {
-            console.error(err);
-            setError(err.response?.data?.message || 'Registration failed');
+            setError(err.response?.data?.message || "Registration failed. Subdomain or Email might be taken.");
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Grid container component="main" sx={{ height: '100vh' }}>
-            {/* Left Panel - Form */}
-            <Grid item xs={12} md={5} component={Paper} elevation={6} square sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', p: 4 }}>
-                <Box sx={{ my: 4, mx: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <Typography component="h1" variant="h4" fontWeight="bold" gutterBottom>Start Your Trial</Typography>
-                    <Typography color="text.secondary" mb={4}>Create your organization workspace</Typography>
+        <Container maxWidth="xs" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+            <Paper elevation={6} sx={{ p: 4, width: '100%', borderRadius: 2 }}>
 
-                    <Box component="form" onSubmit={handleRegister} sx={{ width: '100%' }}>
-                        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                <Box textAlign="center" mb={3}>
+                    <Typography variant="h5" fontWeight="bold" color="primary">
+                        Create Workspace
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Get started with your new organization
+                    </Typography>
+                </Box>
 
-                        <TextField margin="dense" required fullWidth label="Company Name" placeholder="Acme Corp" value={form.tenantName} onChange={(e) => setForm({ ...form, tenantName: e.target.value })} InputProps={{ startAdornment: (<InputAdornment position="start"><Business fontSize="small" /></InputAdornment>) }} />
-                        <TextField margin="dense" required fullWidth label="Workspace Subdomain" placeholder="acme" helperText={`Your URL: ${form.subdomain || 'company'}.nexus.com`} value={form.subdomain} onChange={(e) => setForm({ ...form, subdomain: e.target.value })} InputProps={{ startAdornment: (<InputAdornment position="start"><Domain fontSize="small" /></InputAdornment>) }} />
+                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-                        <TextField margin="dense" required fullWidth label="Admin Name" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} InputProps={{ startAdornment: (<InputAdornment position="start"><Person fontSize="small" /></InputAdornment>) }} />
-                        <TextField margin="dense" required fullWidth label="Admin Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} InputProps={{ startAdornment: (<InputAdornment position="start"><Email fontSize="small" /></InputAdornment>) }} />
-                        <TextField margin="dense" required fullWidth label="Password" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} InputProps={{ startAdornment: (<InputAdornment position="start"><Lock fontSize="small" /></InputAdornment>) }} />
+                <Box component="form" onSubmit={handleSubmit}>
 
-                        <Button type="submit" fullWidth variant="contained" disabled={loading} sx={{ mt: 4, mb: 2, py: 1.5, fontWeight: 'bold' }}>{loading ? 'Creating...' : 'Create Account'}</Button>
-                        <Grid container justifyContent="center"><Grid item><Link to="/login" style={{ color: '#3b82f6', textDecoration: 'none' }}>Already have an account? Sign In</Link></Grid></Grid>
+                    <Stack spacing={2}>
+                        {/* ORGANIZATION NAME */}
+                        <TextField
+                            fullWidth
+                            required
+                            label="Organization Name"
+                            name="tenantName"
+                            placeholder="e.g. Acme Corp"
+                            value={formData.tenantName}
+                            onChange={handleChange}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Business color="action" /></InputAdornment>,
+                            }}
+                        />
+
+                        {/* SUBDOMAIN */}
+                        <TextField
+                            fullWidth
+                            required
+                            label="Workspace Subdomain"
+                            name="subdomain"
+                            placeholder="acme"
+                            helperText={`Your address will be: ${formData.subdomain || '...'}.saas.com`}
+                            value={formData.subdomain}
+                            onChange={handleChange}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Dns color="action" /></InputAdornment>,
+                            }}
+                        />
+
+                        {/* ADMIN NAME */}
+                        <TextField
+                            fullWidth
+                            required
+                            label="Admin Full Name"
+                            name="adminFullName"
+                            placeholder="John Doe"
+                            value={formData.adminFullName}
+                            onChange={handleChange}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Person color="action" /></InputAdornment>,
+                            }}
+                        />
+
+                        {/* EMAIL */}
+                        <TextField
+                            fullWidth
+                            required
+                            label="Admin Email"
+                            name="adminEmail"
+                            type="email"
+                            value={formData.adminEmail}
+                            onChange={handleChange}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Email color="action" /></InputAdornment>,
+                            }}
+                        />
+
+                        {/* PASSWORD */}
+                        <TextField
+                            fullWidth
+                            required
+                            label="Password"
+                            name="adminPassword"
+                            type={showPassword ? 'text' : 'password'}
+                            value={formData.adminPassword}
+                            onChange={handleChange}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Lock color="action" /></InputAdornment>,
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+
+                        {/* CONFIRM PASSWORD */}
+                        <TextField
+                            fullWidth
+                            required
+                            label="Confirm Password"
+                            name="confirmPassword"
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            value={formData.confirmPassword}
+                            onChange={handleChange}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><Lock color="action" /></InputAdornment>,
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                                            {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                        />
+                    </Stack>
+
+                    <Button
+                        fullWidth
+                        type="submit"
+                        variant="contained"
+                        size="large"
+                        sx={{ mt: 4, mb: 2, height: 48, fontWeight: 'bold' }}
+                        disabled={loading}
+                    >
+                        {loading ? <CircularProgress size={24} color="inherit" /> : 'Register Organization'}
+                    </Button>
+
+                    <Box textAlign="center" mt={2}>
+                        <Typography variant="body2" color="text.secondary">
+                            Already have an account?{' '}
+                            <Link to="/login" style={{ textDecoration: 'none', color: '#1976d2', fontWeight: 'bold' }}>
+                                Sign In
+                            </Link>
+                        </Typography>
                     </Box>
-                </Box>
-            </Grid>
 
-            {/* Right Panel - Visuals */}
-            <Grid item xs={false} md={7} sx={{ backgroundImage: 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Box sx={{ textAlign: 'center', color: 'white', p: 4 }}>
-                    <Typography variant="h2" fontWeight="800">Scale Faster</Typography>
-                    <Typography variant="h5" sx={{ opacity: 0.8 }}>Multi-tenant SaaS Platform</Typography>
                 </Box>
-            </Grid>
-        </Grid>
+            </Paper>
+        </Container>
     );
 }
+
 export default Register;

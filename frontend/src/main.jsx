@@ -1,14 +1,16 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import { ThemeProvider, CssBaseline } from '@mui/material';
-import theme from './theme';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+// Create the root element
+const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// Render the App
+// Note: We do NOT import ThemeProvider here anymore. 
+// It is handled inside App.jsx
+root.render(
   <React.StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline /> {/* This automatically handles dark mode background */}
-      <App />
-    </ThemeProvider>
-  </React.StrictMode>,
-)
+    <App />
+  </React.StrictMode>
+);

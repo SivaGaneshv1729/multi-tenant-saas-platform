@@ -1,59 +1,48 @@
 import { createTheme } from '@mui/material/styles';
 
-const theme = createTheme({
+export const getTheme = (mode) => createTheme({
     palette: {
-        mode: 'dark',
+        mode, // 'light' or 'dark'
         primary: {
-            main: '#3b82f6', // Premium Blue
-            dark: '#2563eb',
+            main: '#2563eb', // Blue
         },
         secondary: {
-            main: '#10b981', // Emerald Green
+            main: '#475569', // Slate
         },
         background: {
-            default: '#0f172a', // Deep Slate (App Background)
-            paper: '#1e293b',   // Lighter Slate (Cards/Sidebar)
+            default: mode === 'light' ? '#f1f5f9' : '#0f172a', // Light Gray vs Dark Navy
+            paper: mode === 'light' ? '#ffffff' : '#1e293b',   // White vs Dark Slate
         },
         text: {
-            primary: '#f8fafc',
-            secondary: '#94a3b8',
+            primary: mode === 'light' ? '#1e293b' : '#f8fafc',
+            secondary: mode === 'light' ? '#64748b' : '#cbd5e1',
         },
-        divider: '#334155',
     },
     typography: {
         fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
         h1: { fontWeight: 700 },
         h2: { fontWeight: 700 },
         h3: { fontWeight: 700 },
-        button: { textTransform: 'none', fontWeight: 600 },
-    },
-    shape: {
-        borderRadius: 12,
+        h4: { fontWeight: 600 },
+        h5: { fontWeight: 600 },
+        h6: { fontWeight: 600 },
     },
     components: {
         MuiButton: {
             styleOverrides: {
-                root: { boxShadow: 'none' },
-                containedPrimary: {
-                    '&:hover': { boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)' },
+                root: {
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    borderRadius: 8,
                 },
             },
         },
         MuiPaper: {
             styleOverrides: {
-                root: { backgroundImage: 'none' },
-            },
-        },
-        MuiAppBar: {
-            styleOverrides: {
                 root: {
-                    backgroundColor: '#1e293b',
-                    borderBottom: '1px solid #334155',
-                    boxShadow: 'none',
-                },
-            },
-        },
+                    backgroundImage: 'none', // Fix for dark mode elevation overlay in MUI
+                }
+            }
+        }
     },
 });
-
-export default theme;
