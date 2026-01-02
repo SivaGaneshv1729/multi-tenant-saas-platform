@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 // --- ROBUST DATABASE IMPORT ---
-// This safely handles the import whether init-db.js exports a function or an object
 const initDBModule = require('../scripts/init-db');
 const initDB = typeof initDBModule === 'function' ? initDBModule : initDBModule.initDB;
 
@@ -52,6 +51,13 @@ app.get('/api/health', async (req, res) => {
 // API 1: Register Tenant (Transaction)
 app.post('/api/auth/register-tenant', async (req, res) => {
     const { tenantName, subdomain, adminEmail, adminPassword, adminFullName } = req.body;
+
+    // --- VALIDATION: Subdomain format ---
+    const subdomainRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+    if (!subdomainRegex.test(subdomain)) {
+        return res.status(400).json({ success: false, message: "Subdomain must be lowercase, alphanumeric, and cannot start/end with hyphens." });
+    }
+
     const client = await pool.connect();
 
     try {
@@ -83,9 +89,9 @@ app.post('/api/auth/register-tenant', async (req, res) => {
     }
 });
 
-// API 2: Login 
+// API 2: Login (Super Admin + Tenant Support)
 app.post('/api/auth/login', async (req, res) => {
-    const { email, password, subdomain } = req.body; // Subdomain is now expected
+    const { email, password, subdomain } = req.body;
 
     try {
         let user;
@@ -97,25 +103,21 @@ app.post('/api/auth/login', async (req, res) => {
         }
         // SCENARIO 2: Tenant User Login (Must have valid subdomain)
         else {
-            // 1. Find Tenant ID from Subdomain
             const tenantRes = await pool.query('SELECT id FROM tenants WHERE subdomain = $1', [subdomain]);
             if (tenantRes.rows.length === 0) {
                 return res.status(404).json({ success: false, message: "Tenant/Subdomain not found" });
             }
             const tenantId = tenantRes.rows[0].id;
 
-            // 2. Find User in that specific Tenant
             const userRes = await pool.query('SELECT * FROM users WHERE email = $1 AND tenant_id = $2', [email, tenantId]);
             user = userRes.rows[0];
         }
 
-        // Common Validation
         if (!user) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
         const validPassword = await bcrypt.compare(password, user.password_hash);
         if (!validPassword) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
-        // Generate Token
         const token = jwt.sign(
             { userId: user.id, tenantId: user.tenant_id, role: user.role },
             process.env.JWT_SECRET,
@@ -164,19 +166,48 @@ app.get('/api/tenants/:tenantId', authenticateToken, async (req, res) => {
     }
 });
 
-// API 6: Update Tenant
+// API 6: Update Tenant (Fixed for Super Admin Powers)
 app.put('/api/tenants/:tenantId', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'super_admin' && req.user.role !== 'tenant_admin') return res.status(403).json({ message: "Forbidden" });
-    if (req.user.role === 'tenant_admin' && req.user.tenantId !== req.params.tenantId) return res.status(403).json({ message: "Forbidden" });
+    // 1. Authorization Check
+    const isSuper = req.user.role === 'super_admin';
+    const isTenantAdmin = req.user.role === 'tenant_admin' && req.user.tenantId === req.params.tenantId;
 
-    const { name } = req.body;
+    if (!isSuper && !isTenantAdmin) return res.status(403).json({ message: "Forbidden" });
+
+    const { name, status, subscriptionPlan } = req.body;
+
     try {
+        // 2. Tenant Admin can only update NAME
+        if (!isSuper) {
+            const result = await pool.query(
+                'UPDATE tenants SET name = COALESCE($1, name) WHERE id = $2 RETURNING *',
+                [name, req.params.tenantId]
+            );
+            return res.json({ success: true, data: result.rows[0] });
+        }
+
+        // 3. Super Admin can update EVERYTHING (Name, Status, Plan)
+        // We also need to update limits if plan changes (Optional logic, but good practice)
+        let maxUsers = 5;
+        let maxProjects = 3;
+        if (subscriptionPlan === 'pro') { maxUsers = 25; maxProjects = 15; }
+        if (subscriptionPlan === 'enterprise') { maxUsers = 100; maxProjects = 50; }
+
+        // If subscriptionPlan is not provided, don't overwrite limits
         const result = await pool.query(
-            'UPDATE tenants SET name = $1 WHERE id = $2 RETURNING *',
-            [name, req.params.tenantId]
+            `UPDATE tenants SET 
+         name = COALESCE($1, name), 
+         status = COALESCE($2, status), 
+         subscription_plan = COALESCE($3, subscription_plan),
+         max_users = CASE WHEN $3 IS NOT NULL THEN $4 ELSE max_users END,
+         max_projects = CASE WHEN $3 IS NOT NULL THEN $5 ELSE max_projects END
+       WHERE id = $6 RETURNING *`,
+            [name, status, subscriptionPlan, maxUsers, maxProjects, req.params.tenantId]
         );
-        logAudit(req.params.tenantId, req.user.userId, 'UPDATE_TENANT', 'tenant', req.params.tenantId, req.ip);
+
+        logAudit(req.params.tenantId, req.user.userId, 'UPDATE_TENANT_SETTINGS', 'tenant', req.params.tenantId, req.ip);
         res.json({ success: true, data: result.rows[0] });
+
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -203,7 +234,6 @@ app.post('/api/users', authenticateToken, async (req, res) => {
 
     const { email, password, fullName, role } = req.body;
     try {
-        // 1. Check Subscription Limits
         const tenant = await pool.query('SELECT max_users FROM tenants WHERE id = $1', [req.user.tenantId]);
         const userCount = await pool.query('SELECT count(*) FROM users WHERE tenant_id = $1', [req.user.tenantId]);
 
@@ -211,7 +241,6 @@ app.post('/api/users', authenticateToken, async (req, res) => {
             return res.status(403).json({ success: false, message: "Subscription limit reached (Max Users)" });
         }
 
-        // 2. Create User
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
             'INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, full_name, role',
@@ -240,12 +269,10 @@ app.get('/api/users', authenticateToken, async (req, res) => {
 
 // API 10: Update User
 app.put('/api/users/:userId', authenticateToken, async (req, res) => {
-    // Only allow admin or self
     if (req.user.role !== 'tenant_admin' && req.user.userId !== req.params.userId) return res.status(403).json({ message: "Forbidden" });
 
     const { fullName, role } = req.body;
     try {
-        // Only Admin can change role
         const newRole = req.user.role === 'tenant_admin' ? role : undefined;
 
         const result = await pool.query(
@@ -259,9 +286,14 @@ app.put('/api/users/:userId', authenticateToken, async (req, res) => {
     }
 });
 
-// API 11: Delete User
+// API 11: Delete User (With Self-Delete Prevention)
 app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
     if (req.user.role !== 'tenant_admin') return res.status(403).json({ message: "Admins only" });
+
+    // --- FIX: Prevent Self-Deletion ---
+    if (req.user.userId === req.params.userId) {
+        return res.status(403).json({ success: false, message: "Cannot delete yourself." });
+    }
 
     try {
         const result = await pool.query('DELETE FROM users WHERE id = $1 AND tenant_id = $2 RETURNING id', [req.params.userId, req.user.tenantId]);
@@ -278,11 +310,10 @@ app.delete('/api/users/:userId', authenticateToken, async (req, res) => {
 // 5. PROJECT MANAGEMENT MODULE
 // ==========================================
 
-// API 12: Create Project (With Subscription Check)
+// API 12: Create Project
 app.post('/api/projects', authenticateToken, async (req, res) => {
     const { name, description } = req.body;
     try {
-        // 1. Check Subscription Limits
         const tenant = await pool.query('SELECT max_projects FROM tenants WHERE id = $1', [req.user.tenantId]);
         const projCount = await pool.query('SELECT count(*) FROM projects WHERE tenant_id = $1', [req.user.tenantId]);
 
@@ -290,7 +321,6 @@ app.post('/api/projects', authenticateToken, async (req, res) => {
             return res.status(403).json({ success: false, message: "Project limit reached. Upgrade plan." });
         }
 
-        // 2. Create Project
         const result = await pool.query(
             'INSERT INTO projects (tenant_id, name, description, created_by) VALUES ($1, $2, $3, $4) RETURNING *',
             [req.user.tenantId, name, description, req.user.userId]
@@ -349,7 +379,7 @@ app.delete('/api/projects/:projectId', authenticateToken, async (req, res) => {
 // 6. TASK MANAGEMENT MODULE
 // ==========================================
 
-// API 16: Create Task (With Assignment)
+// API 16: Create Task
 app.post('/api/projects/:projectId/tasks', authenticateToken, async (req, res) => {
     const { title, status, priority, description, dueDate, assignedTo } = req.body;
     try {
@@ -417,14 +447,9 @@ app.put('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     }
 });
 
-// ==========================================
-// 7. PERSONAL TASK BOARD
-// ==========================================
-
-// API 20: Get "My Tasks" and "Open Tasks"
+// API 20: Personal Task Board
 app.get('/api/my-tasks', authenticateToken, async (req, res) => {
     try {
-        // Fetch tasks assigned to current user OR unassigned (NULL) in their tenant
         const result = await pool.query(
             `SELECT t.*, p.name as project_name 
        FROM tasks t
@@ -466,30 +491,41 @@ app.patch('/api/tasks/:taskId/claim', authenticateToken, async (req, res) => {
     }
 });
 
-// ==========================================
-// 8. DASHBOARD STATS (DYNAMIC)
-// ==========================================
-
-// API 22: Get Dashboard Stats
+// API 22: Dashboard Stats (Dynamic)
 app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
     try {
         const { tenantId, role, userId } = req.user;
 
-        // 1. Super Admin Stats (System View)
+        // --- SUPER ADMIN VIEW ---
         if (role === 'super_admin') {
-            const tenants = await pool.query('SELECT count(*) FROM tenants');
+            // 1. Total Counts
+            const totalTenants = await pool.query('SELECT count(*) FROM tenants');
+            const totalUsers = await pool.query('SELECT count(*) FROM users');
+            const totalProjects = await pool.query('SELECT count(*) FROM projects');
+
+            // 2. Per-Tenant Stats (For the table)
+            const tenantStats = await pool.query(`
+        SELECT t.name, t.subscription_plan, t.status,
+               (SELECT count(*) FROM users u WHERE u.tenant_id = t.id) as user_count,
+               (SELECT count(*) FROM projects p WHERE p.tenant_id = t.id) as project_count
+        FROM tenants t
+        ORDER BY t.created_at DESC
+      `);
+
             return res.json({
                 success: true,
                 data: {
-                    totalProjects: 0, totalUsers: 0,
-                    tasks: { total: 0, todo: 0, in_progress: 0, completed: 0 },
-                    tenants: parseInt(tenants.rows[0].count)
+                    overview: {
+                        tenants: parseInt(totalTenants.rows[0].count),
+                        users: parseInt(totalUsers.rows[0].count),
+                        projects: parseInt(totalProjects.rows[0].count)
+                    },
+                    tenantDetails: tenantStats.rows
                 }
             });
         }
 
-        // 2. Define Query Conditions based on Role
-        // Admin = All tasks in tenant. User = Only their assigned tasks.
+        // --- TENANT ADMIN / USER VIEW ---
         let taskQuery = 'SELECT status, COUNT(*) as count FROM tasks WHERE tenant_id = $1';
         let taskParams = [tenantId];
 
@@ -497,7 +533,6 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
             taskQuery += ' AND assigned_to = $2';
             taskParams.push(userId);
         }
-
         taskQuery += ' GROUP BY status';
 
         const projectCount = await pool.query('SELECT count(*) FROM projects WHERE tenant_id = $1', [tenantId]);
@@ -527,7 +562,6 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
 // API 23: Delete Task
 app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     try {
-        // Only Admin or the Assignee can delete a task
         const taskCheck = await pool.query('SELECT * FROM tasks WHERE id = $1 AND tenant_id = $2', [req.params.taskId, req.user.tenantId]);
         if (taskCheck.rows.length === 0) return res.status(404).json({ message: "Task not found" });
 
@@ -537,7 +571,6 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
         }
 
         await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.taskId]);
-
         logAudit(req.user.tenantId, req.user.userId, 'DELETE_TASK', 'task', req.params.taskId, req.ip);
         res.json({ success: true, message: "Task deleted" });
     } catch (err) {
@@ -545,19 +578,12 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     }
 });
 
-
-// ==========================================
 // SERVER START
-// ==========================================
 const PORT = process.env.PORT || 5000;
-
 if (initDB) {
     initDB().then(() => {
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on port ${PORT}`);
-        });
+        app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
     });
 } else {
-    console.error("WARNING: Starting server without DB Init due to module error.");
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 }

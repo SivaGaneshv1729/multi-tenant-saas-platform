@@ -6,155 +6,152 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL || `postgres://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`,
 });
 
-async function initDB() {
+const initDB = async () => {
   const client = await pool.connect();
   try {
     console.log("🔥 WIPING DATABASE & STARTING FRESH...");
 
-    await client.query('BEGIN');
-
-    // 1. DROP ALL EXISTING TABLES (Clean Slate)
+    // 1. DROP EXISTING TABLES
     await client.query(`
       DROP TABLE IF EXISTS audit_logs CASCADE;
       DROP TABLE IF EXISTS tasks CASCADE;
       DROP TABLE IF EXISTS projects CASCADE;
       DROP TABLE IF EXISTS users CASCADE;
       DROP TABLE IF EXISTS tenants CASCADE;
-      DROP EXTENSION IF EXISTS "uuid-ossp";
     `);
 
-    // 2. RE-CREATE SCHEMA
-    await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
-
-    // Tenants
+    // 2. CREATE TABLES
     await client.query(`
       CREATE TABLE tenants (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name VARCHAR(255) NOT NULL,
-        subdomain VARCHAR(50) UNIQUE NOT NULL,
-        status VARCHAR(20) DEFAULT 'active',
-        subscription_plan VARCHAR(20) DEFAULT 'free',
-        max_users INT DEFAULT 5,
-        max_projects INT DEFAULT 3,
+        subdomain VARCHAR(255) UNIQUE NOT NULL,
+        status VARCHAR(50) DEFAULT 'active',
+        subscription_plan VARCHAR(50) DEFAULT 'free',
+        max_users INTEGER DEFAULT 5,
+        max_projects INTEGER DEFAULT 3,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    // Users
-    await client.query(`
       CREATE TABLE users (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
         email VARCHAR(255) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
-        full_name VARCHAR(255),
-        role VARCHAR(20) NOT NULL, -- super_admin, tenant_admin, user
+        full_name VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL CHECK (role IN ('super_admin', 'tenant_admin', 'user')),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT unique_email_per_tenant UNIQUE (tenant_id, email)
+        UNIQUE(tenant_id, email)
       );
-    `);
 
-    // Projects
-    await client.query(`
       CREATE TABLE projects (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
         name VARCHAR(255) NOT NULL,
         description TEXT,
-        status VARCHAR(20) DEFAULT 'active',
+        status VARCHAR(50) DEFAULT 'active',
         created_by UUID REFERENCES users(id) ON DELETE SET NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    // Tasks (With Assigned_To)
-    await client.query(`
       CREATE TABLE tasks (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-        assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+        tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
         title VARCHAR(255) NOT NULL,
         description TEXT,
         status VARCHAR(50) DEFAULT 'todo',
-        priority VARCHAR(20) DEFAULT 'medium',
+        priority VARCHAR(50) DEFAULT 'medium',
+        assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
         due_date TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-    `);
 
-    // Audit Logs
-    await client.query(`
       CREATE TABLE audit_logs (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        tenant_id UUID,
-        user_id UUID,
-        action VARCHAR(50),
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        tenant_id UUID REFERENCES tenants(id) ON DELETE SET NULL,
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        action VARCHAR(255) NOT NULL,
         entity_type VARCHAR(50),
         entity_id UUID,
-        ip_address VARCHAR(45),
+        ip_address VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
     console.log("✅ Schema Created.");
 
-    // --- 3. SEED DATA (THE PERFECT DEMO) ---
+    // 3. SEED DATA
 
-    const password = await bcrypt.hash('123456', 10); // Simple password for everyone
-
-    // === A. SYSTEM SUPER ADMIN ===
+    // --- A. Super Admin ---
+    const superPass = await bcrypt.hash('superadmin123', 10);
     await client.query(`
-      INSERT INTO users (tenant_id, email, password_hash, full_name, role)
-      VALUES (NULL, 'super@admin.com', $1, 'System Super Admin', 'super_admin')
-    `, [password]);
+      INSERT INTO users (tenant_id, email, password_hash, full_name, role) 
+      VALUES (NULL, 'super@admin.com', $1, 'Super Admin', 'super_admin')
+    `, [superPass]);
 
-    // === B. TENANT 1: ACME CORP (The "Active" Company) ===
-    const acmeRes = await client.query(`
-      INSERT INTO tenants (name, subdomain, subscription_plan)
-      VALUES ('Acme Corp', 'acme', 'pro') RETURNING id
+    // --- B. Tenant 1: Partnr (Pro) ---
+    const partnrRes = await client.query(`
+      INSERT INTO tenants (name, subdomain, subscription_plan, max_users, max_projects)
+      VALUES ('Partnr', 'partnr', 'pro', 25, 15) RETURNING id
     `);
-    const acmeId = acmeRes.rows[0].id;
+    const partnrId = partnrRes.rows[0].id;
 
-    // Acme Users
-    const acmeAdmin = await client.query(`INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, 'admin@acme.com', $2, 'Alice Admin', 'tenant_admin') RETURNING id`, [acmeId, password]);
-    const acmeDev = await client.query(`INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, 'dev@acme.com', $2, 'Bob Developer', 'user') RETURNING id`, [acmeId, password]);
-    const acmeDesigner = await client.query(`INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, 'design@acme.com', $2, 'Charlie Designer', 'user') RETURNING id`, [acmeId, password]);
+    // Partnr Admin
+    const adminPass = await bcrypt.hash('admin123', 10);
+    const partnrAdminRes = await client.query(`
+      INSERT INTO users (tenant_id, email, password_hash, full_name, role)
+      VALUES ($1, 'admin@gmail.com', $2, 'Partnr Admin', 'tenant_admin') RETURNING id
+    `, [partnrId, adminPass]);
 
-    // Acme Projects
-    const p1 = await client.query(`INSERT INTO projects (tenant_id, name, description, status, created_by) VALUES ($1, 'Website Redesign', 'Overhaul the corporate website with new branding.', 'active', $2) RETURNING id`, [acmeId, acmeAdmin.rows[0].id]);
-    const p2 = await client.query(`INSERT INTO projects (tenant_id, name, description, status, created_by) VALUES ($1, 'Q4 Marketing Campaign', 'Social media assets and ad tracking.', 'active', $2) RETURNING id`, [acmeId, acmeAdmin.rows[0].id]);
+    // Partnr User
+    const userPass = await bcrypt.hash('user123', 10);
+    const partnrUserRes = await client.query(`
+      INSERT INTO users (tenant_id, email, password_hash, full_name, role)
+      VALUES ($1, 'user.partnr@gmail.com', $2, 'Partnr User', 'user') RETURNING id
+    `, [partnrId, userPass]);
 
-    // Acme Tasks (Assigned!)
-    await client.query(`INSERT INTO tasks (tenant_id, project_id, title, status, priority, assigned_to, due_date) VALUES ($1, $2, 'Fix Login Bug', 'in_progress', 'high', $3, NOW() + INTERVAL '2 days')`, [acmeId, p1.rows[0].id, acmeDev.rows[0].id]);
-    await client.query(`INSERT INTO tasks (tenant_id, project_id, title, status, priority, assigned_to, due_date) VALUES ($1, $2, 'Setup CI/CD Pipeline', 'completed', 'medium', $3, NOW() - INTERVAL '1 day')`, [acmeId, p1.rows[0].id, acmeDev.rows[0].id]);
-    await client.query(`INSERT INTO tasks (tenant_id, project_id, title, status, priority, assigned_to, due_date) VALUES ($1, $2, 'Design Hero Banner', 'todo', 'medium', $3, NOW() + INTERVAL '5 days')`, [acmeId, p1.rows[0].id, acmeDesigner.rows[0].id]);
-    await client.query(`INSERT INTO tasks (tenant_id, project_id, title, status, priority, assigned_to, due_date) VALUES ($1, $2, 'Create Ad Graphics', 'in_progress', 'high', $3, NOW() + INTERVAL '3 days')`, [acmeId, p2.rows[0].id, acmeDesigner.rows[0].id]);
+    // Partnr Project & Task
+    const partnrProj = await client.query(`
+      INSERT INTO projects (tenant_id, name, description, created_by)
+      VALUES ($1, 'Partnr Launch', 'Initial setup project', $2) RETURNING id
+    `, [partnrId, partnrAdminRes.rows[0].id]);
+
+    await client.query(`
+      INSERT INTO tasks (project_id, tenant_id, title, status, priority, assigned_to)
+      VALUES ($1, $2, 'Setup Infrastructure', 'in_progress', 'high', $3)
+    `, [partnrProj.rows[0].id, partnrId, partnrUserRes.rows[0].id]);
 
 
-    // === C. TENANT 2: STARK INDUSTRIES (The "Isolation" Proof) ===
+    // --- C. Tenant 2: Stark Industries (Free) ---
     const starkRes = await client.query(`
-      INSERT INTO tenants (name, subdomain, subscription_plan)
-      VALUES ('Stark Industries', 'stark', 'enterprise') RETURNING id
+      INSERT INTO tenants (name, subdomain, subscription_plan, max_users, max_projects)
+      VALUES ('Stark Industries', 'stark', 'free', 5, 3) RETURNING id
     `);
     const starkId = starkRes.rows[0].id;
 
-    // Stark Users
-    await client.query(`INSERT INTO users (tenant_id, email, password_hash, full_name, role) VALUES ($1, 'tony@stark.com', $2, 'Tony Stark', 'tenant_admin')`, [starkId, password]);
+    // Stark Admin
+    await client.query(`
+      INSERT INTO users (tenant_id, email, password_hash, full_name, role)
+      VALUES ($1, 'stark@gmail.com', $2, 'Stark Admin', 'tenant_admin')
+    `, [starkId, adminPass]);
 
-    // Stark Project
-    await client.query(`INSERT INTO projects (tenant_id, name, description, status) VALUES ($1, 'Mark XLII Armor', 'Next gen autonomous suit.', 'active')`, [starkId]);
+    // Stark User (ADDED TO MEET REQUIREMENTS)
+    await client.query(`
+      INSERT INTO users (tenant_id, email, password_hash, full_name, role)
+      VALUES ($1, 'pepper@gmail.com', $2, 'Pepper Potts', 'user')
+    `, [starkId, userPass]);
 
-    await client.query('COMMIT');
     console.log("✅ SEEDING COMPLETE: Database is ready for demo.");
-
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error("❌ INIT FAILED:", err);
+    console.error("❌ DB Init Failed:", err);
   } finally {
     client.release();
   }
+};
+
+if (require.main === module) {
+  initDB().then(() => process.exit());
 }
 
-// CRITICAL EXPORT LINE
-module.exports = initDB;
+module.exports = { initDB };

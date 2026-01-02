@@ -1,20 +1,20 @@
-# Use lightweight Node.js image
+# Use official Node.js image
 FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files first (for better caching)
+# Copy package files first (for caching)
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Copy the rest of the backend code
+# Copy the rest of the application code
 COPY . .
 
-# Expose the fixed backend port
+# Expose the API port
 EXPOSE 5000
 
-# Start the server (which includes the auto-seeding script)
-CMD ["npm", "start"]
+# Start the server
+CMD ["node", "src/server.js"]
