@@ -1,130 +1,138 @@
 import { useEffect, useState } from 'react';
 import api from '../api';
 import {
-    Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    Paper, Chip, IconButton, Dialog, DialogTitle, DialogContent, TextField,
-    DialogActions, Select, MenuItem, InputLabel, FormControl, CircularProgress, Stack
+    Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Button, IconButton, Chip, Dialog, DialogTitle, DialogContent, TextField,
+    DialogActions, MenuItem, Checkbox, FormControlLabel, InputAdornment, Stack, Typography
 } from '@mui/material';
-import { Delete, Add, Edit } from '@mui/icons-material';
+import { Add, Edit, Delete, Search, Person } from '@mui/icons-material';
 import Layout from '../components/Layout';
 
 function Users() {
     const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [open, setOpen] = useState(false);
-    const [editOpen, setEditOpen] = useState(false);
+    const [isEdit, setIsEdit] = useState(false);
+    const [search, setSearch] = useState('');
 
-    // Forms
-    const [form, setForm] = useState({ fullName: '', email: '', password: '', role: 'user' });
-    const [editForm, setEditForm] = useState({ id: '', fullName: '', role: '' });
+    const [formData, setFormData] = useState({
+        id: '', email: '', password: '', fullName: '', role: 'user', isActive: true
+    });
 
     useEffect(() => { fetchUsers(); }, []);
 
-    const fetchUsers = () => {
-        setLoading(true);
-        api.get('/users').then(res => setUsers(res.data.data)).finally(() => setLoading(false));
-    };
-
-    const handleAddUser = async () => {
+    const fetchUsers = async () => {
         try {
-            await api.post('/users', form);
-            setOpen(false); setForm({ fullName: '', email: '', password: '', role: 'user' });
-            fetchUsers();
-        } catch (err) { alert(err.response?.data?.message || 'Error'); }
+            const res = await api.get('/users');
+            setUsers(res.data.data);
+        } catch (err) { console.error(err); }
     };
 
-    const handleUpdateUser = async () => {
+    const handleOpen = (user = null) => {
+        if (user) {
+            setIsEdit(true);
+            setFormData({ id: user.id, email: user.email, password: '', fullName: user.full_name, role: user.role, isActive: true });
+        } else {
+            setIsEdit(false);
+            setFormData({ id: '', email: '', password: '', fullName: '', role: 'user', isActive: true });
+        }
+        setOpen(true);
+    };
+
+    const handleSubmit = async () => {
         try {
-            await api.put(`/users/${editForm.id}`, { fullName: editForm.fullName, role: editForm.role });
-            setEditOpen(false);
+            if (isEdit) {
+                await api.put(`/users/${formData.id}`, formData);
+            } else {
+                await api.post('/users', formData);
+            }
+            setOpen(false);
             fetchUsers();
-        } catch (err) { alert('Error updating user'); }
+        } catch (err) { alert(err.response?.data?.message || "Error"); }
     };
 
-    const handleDelete = async (userId) => {
-        if (!confirm("Are you sure?")) return;
-        try { await api.delete(`/users/${userId}`); fetchUsers(); } catch (err) { alert("Failed"); }
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure?")) return;
+        try { await api.delete(`/users/${id}`); fetchUsers(); } catch (err) { alert(err.response?.data?.message); }
     };
 
-    const openEdit = (user) => {
-        setEditForm({ id: user.id, fullName: user.full_name, role: user.role });
-        setEditOpen(true);
-    };
+    const filteredUsers = users.filter(u =>
+        u.full_name.toLowerCase().includes(search.toLowerCase()) ||
+        u.email.toLowerCase().includes(search.toLowerCase())
+    );
 
     return (
-        <Layout title="Team Management" actions={<Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}>Add Member</Button>}>
-            {loading ? <CircularProgress /> : (
-                <TableContainer component={Paper} sx={{ border: '1px solid #334155' }}>
-                    <Table>
-                        <TableHead sx={{ bgcolor: 'action.hover' }}>
-                            <TableRow>
-                                <TableCell>Name</TableCell>
-                                <TableCell>Email</TableCell>
-                                <TableCell>Role</TableCell>
-                                <TableCell align="right">Actions</TableCell>
+        <Layout
+            title="Team Members"
+            actions={<Button variant="contained" startIcon={<Add />} onClick={() => handleOpen(null)}>Add Member</Button>}
+        >
+            <Paper sx={{ p: 2, mb: 3, display: 'flex', alignItems: 'center' }}>
+                <InputAdornment position="start" sx={{ mr: 1 }}><Search color="action" /></InputAdornment>
+                <TextField
+                    variant="standard" placeholder="Search by name or email..." fullWidth
+                    InputProps={{ disableUnderline: true }} value={search} onChange={(e) => setSearch(e.target.value)}
+                />
+            </Paper>
+
+            <TableContainer component={Paper}>
+                <Table>
+                    <TableHead>
+                        <TableRow sx={{ bgcolor: 'action.hover' }}>
+                            <TableCell>Name</TableCell>
+                            <TableCell>Email</TableCell>
+                            <TableCell>Role</TableCell>
+                            <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {filteredUsers.map((user) => (
+                            <TableRow key={user.id}>
+                                <TableCell>
+                                    <Stack direction="row" alignItems="center" spacing={2}>
+                                        <Person color="action" />
+                                        <Typography variant="body2" fontWeight="500">{user.full_name}</Typography>
+                                    </Stack>
+                                </TableCell>
+                                <TableCell>{user.email}</TableCell>
+                                <TableCell>
+                                    <Chip
+                                        label={user.role.replace('_', ' ')}
+                                        color={user.role === 'tenant_admin' ? 'primary' : 'default'}
+                                        size="small"
+                                    />
+                                </TableCell>
+                                <TableCell align="right">
+                                    <IconButton size="small" onClick={() => handleOpen(user)}><Edit fontSize="small" /></IconButton>
+                                    <IconButton size="small" color="error" onClick={() => handleDelete(user.id)}><Delete fontSize="small" /></IconButton>
+                                </TableCell>
                             </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {users.map((row) => (
-                                <TableRow key={row.id}>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>{row.full_name}</TableCell>
-                                    <TableCell>{row.email}</TableCell>
-                                    <TableCell>
-                                        <Chip label={row.role.replace('_', ' ')} color={row.role === 'tenant_admin' ? 'primary' : 'default'} size="small" />
-                                    </TableCell>
-                                    <TableCell align="right">
-                                        <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                            <IconButton size="small" onClick={() => openEdit(row)}><Edit fontSize="small" /></IconButton>
-                                            <IconButton size="small" color="error" onClick={() => handleDelete(row.id)}><Delete fontSize="small" /></IconButton>
-                                        </Stack>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            )}
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
 
-            {/* ADD USER MODAL */}
-            <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-                <DialogTitle>Invite Team Member</DialogTitle>
+            <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xs">
+                <DialogTitle>{isEdit ? 'Edit User' : 'Add New Member'}</DialogTitle>
                 <DialogContent>
-                    <TextField margin="dense" label="Full Name" fullWidth value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })} />
-                    <TextField margin="dense" label="Email" fullWidth value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                    <TextField margin="dense" label="Password" type="password" fullWidth value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-                    <FormControl fullWidth margin="dense">
-                        <InputLabel>Role</InputLabel>
-                        <Select value={form.role} label="Role" onChange={e => setForm({ ...form, role: e.target.value })}>
-                            <MenuItem value="user">User</MenuItem>
-                            <MenuItem value="tenant_admin">Admin</MenuItem>
-                        </Select>
-                    </FormControl>
+                    <TextField margin="dense" label="Full Name" fullWidth value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} />
+                    <TextField margin="dense" label="Email" fullWidth disabled={isEdit} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                    {!isEdit && (
+                        <TextField margin="dense" label="Password" type="password" fullWidth value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
+                    )}
+                    <TextField select margin="dense" label="Role" fullWidth value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}>
+                        <MenuItem value="user">User</MenuItem>
+                        <MenuItem value="tenant_admin">Tenant Admin</MenuItem>
+                    </TextField>
+                    {isEdit && (
+                        <FormControlLabel control={<Checkbox checked={formData.isActive} onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })} />} label="Active Account" sx={{ mt: 1 }} />
+                    )}
                 </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
+                <DialogActions sx={{ p: 3 }}>
                     <Button onClick={() => setOpen(false)}>Cancel</Button>
-                    <Button variant="contained" onClick={handleAddUser}>Invite</Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* EDIT USER MODAL */}
-            <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm">
-                <DialogTitle>Edit User Role</DialogTitle>
-                <DialogContent>
-                    <TextField margin="dense" label="Full Name" fullWidth value={editForm.fullName} onChange={e => setEditForm({ ...editForm, fullName: e.target.value })} />
-                    <FormControl fullWidth margin="dense">
-                        <InputLabel>Role</InputLabel>
-                        <Select value={editForm.role} label="Role" onChange={e => setEditForm({ ...editForm, role: e.target.value })}>
-                            <MenuItem value="user">User</MenuItem>
-                            <MenuItem value="tenant_admin">Admin</MenuItem>
-                        </Select>
-                    </FormControl>
-                </DialogContent>
-                <DialogActions sx={{ p: 2 }}>
-                    <Button onClick={() => setEditOpen(false)}>Cancel</Button>
-                    <Button variant="contained" onClick={handleUpdateUser}>Save Changes</Button>
+                    <Button variant="contained" onClick={handleSubmit}>{isEdit ? 'Update' : 'Add User'}</Button>
                 </DialogActions>
             </Dialog>
         </Layout>
     );
 }
+
 export default Users;

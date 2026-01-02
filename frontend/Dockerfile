@@ -1,19 +1,20 @@
-# Use Debian-slim instead of Alpine to fix Rollup/Vite compatibility issues
-FROM node:20-slim
+# Use Node image
+FROM node:18-alpine
 
+# Set working directory
 WORKDIR /app
 
-# Copy package definitions
+# Copy package files
 COPY package*.json ./
 
-# 1. Delete package-lock.json to prevent Windows/Mac lockfile conflicts with Linux
-# 2. Install dependencies freshly
-RUN rm -f package-lock.json && npm install
+# Install dependencies
+RUN npm install
 
-# Copy the rest of the code
+# Copy app source
 COPY . .
 
+# Expose port 3000
 EXPOSE 3000
 
-# Start the server
+# Start Vite in host mode so Docker can map the port
 CMD ["npm", "run", "dev", "--", "--host"]

@@ -3,18 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import {
     Grid, Paper, Button, Chip, Avatar, Stack, Dialog, DialogTitle, DialogContent,
-    TextField, DialogActions, Typography, Box, CircularProgress, InputAdornment
+    TextField, DialogActions, Typography, CircularProgress, InputAdornment, IconButton, MenuItem
 } from '@mui/material';
-import { Add, Search, FolderOpen } from '@mui/icons-material';
+import { Add, Search, Edit, Delete } from '@mui/icons-material';
 import Layout from '../components/Layout';
 
 function Projects() {
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [open, setOpen] = useState(false);
+    const [isEdit, setIsEdit] = useState(false); // Track if editing
     const [search, setSearch] = useState('');
-    const [newProject, setNewProject] = useState({ name: '', description: '' });
-    const [user, setUser] = useState(JSON.parse(localStorage.getItem('user')));
+
+    // Unified Form State
+    const [formData, setFormData] = useState({ id: '', name: '', description: '', status: 'active' });
+    const [user] = useState(JSON.parse(localStorage.getItem('user')));
 
     const navigate = useNavigate();
 
@@ -29,12 +32,32 @@ function Projects() {
         finally { setLoading(false); }
     };
 
-    const handleCreateProject = async () => {
+    const handleOpen = (project = null) => {
+        if (project) {
+            setIsEdit(true);
+            setFormData({ id: project.id, name: project.name, description: project.description, status: project.status });
+        } else {
+            setIsEdit(false);
+            setFormData({ id: '', name: '', description: '', status: 'active' });
+        }
+        setOpen(true);
+    };
+
+    const handleSubmit = async () => {
         try {
-            await api.post('/projects', newProject);
-            setOpen(false); setNewProject({ name: '', description: '' });
+            if (isEdit) {
+                await api.put(`/projects/${formData.id}`, formData);
+            } else {
+                await api.post('/projects', formData);
+            }
+            setOpen(false);
             fetchProjects();
         } catch (err) { alert(err.response?.data?.message || "Error"); }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure? This will delete all tasks in this project.")) return;
+        try { await api.delete(`/projects/${id}`); fetchProjects(); } catch (err) { alert("Error deleting"); }
     };
 
     const filteredProjects = projects.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
@@ -43,9 +66,8 @@ function Projects() {
         <Layout
             title="Projects"
             actions={
-                // RESTRICTION: Only Admin can see this button
                 user?.role === 'tenant_admin' && (
-                    <Button variant="contained" startIcon={<Add />} onClick={() => setOpen(true)}>New Project</Button>
+                    <Button variant="contained" startIcon={<Add />} onClick={() => handleOpen(null)}>New Project</Button>
                 )
             }
         >
@@ -58,10 +80,7 @@ function Projects() {
             </Paper>
 
             {loading ? <CircularProgress /> : filteredProjects.length === 0 ? (
-                <Paper sx={{ p: 6, textAlign: 'center', borderStyle: 'dashed', borderColor: 'divider' }}>
-                    <FolderOpen sx={{ fontSize: 40, color: 'text.secondary', mb: 2 }} />
-                    <Typography variant="h6" color="text.primary" gutterBottom>No projects found</Typography>
-                </Paper>
+                <Paper sx={{ p: 6, textAlign: 'center', borderStyle: 'dashed' }}><Typography>No projects found</Typography></Paper>
             ) : (
                 <Grid container spacing={3}>
                     {filteredProjects.map((item) => (
@@ -69,36 +88,51 @@ function Projects() {
                             <Paper sx={{ p: 3, border: '1px solid #334155', '&:hover': { boxShadow: 6, borderColor: 'primary.main' } }}>
                                 <Stack direction="row" justifyContent="space-between" mb={2}>
                                     <Avatar variant="rounded" sx={{ bgcolor: 'primary.main' }}>{item.name[0]}</Avatar>
-                                    <Chip label={item.status} size="small" color="success" variant="outlined" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 'bold' }} />
+                                    <Stack direction="row" spacing={1}>
+                                        {/* REQ SATISFIED: Edit Button */}
+                                        {user?.role === 'tenant_admin' && (
+                                            <IconButton size="small" onClick={() => handleOpen(item)}><Edit fontSize="small" /></IconButton>
+                                        )}
+                                        <Chip label={item.status} size="small" color="success" variant="outlined" sx={{ textTransform: 'uppercase', fontSize: '0.7rem' }} />
+                                    </Stack>
                                 </Stack>
                                 <Typography variant="h6" fontWeight="bold" gutterBottom>{item.name}</Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 3, height: 40, overflow: 'hidden' }}>
                                     {item.description || 'No description provided.'}
                                 </Typography>
-                                <Box sx={{ borderTop: '1px solid #334155', pt: 2 }}>
-                                    <Button size="small" fullWidth variant="outlined" onClick={() => navigate(`/projects/${item.id}`)}>
-                                        Open Workspace
-                                    </Button>
-                                </Box>
+
+                                <Stack direction="row" spacing={1}>
+                                    <Button size="small" fullWidth variant="outlined" onClick={() => navigate(`/projects/${item.id}`)}>Open Workspace</Button>
+                                    {user?.role === 'tenant_admin' && (
+                                        <IconButton size="small" color="error" onClick={() => handleDelete(item.id)}><Delete /></IconButton>
+                                    )}
+                                </Stack>
                             </Paper>
                         </Grid>
                     ))}
                 </Grid>
             )}
 
+            {/* CREATE / EDIT MODAL */}
             <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
-                <DialogTitle>Create New Project</DialogTitle>
+                <DialogTitle>{isEdit ? 'Edit Project' : 'Create New Project'}</DialogTitle>
                 <DialogContent>
-                    <TextField autoFocus margin="dense" label="Project Name" fullWidth value={newProject.name} onChange={(e) => setNewProject({ ...newProject, name: e.target.value })} />
-                    <TextField margin="dense" label="Description" fullWidth multiline rows={3} value={newProject.description} onChange={(e) => setNewProject({ ...newProject, description: e.target.value })} />
+                    <TextField margin="dense" label="Project Name" fullWidth value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                    <TextField margin="dense" label="Description" fullWidth multiline rows={3} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
+                    {isEdit && (
+                        <TextField select margin="dense" label="Status" fullWidth value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })}>
+                            <MenuItem value="active">Active</MenuItem>
+                            <MenuItem value="archived">Archived</MenuItem>
+                            <MenuItem value="completed">Completed</MenuItem>
+                        </TextField>
+                    )}
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 3 }}>
                     <Button onClick={() => setOpen(false)}>Cancel</Button>
-                    <Button onClick={handleCreateProject} variant="contained">Create</Button>
+                    <Button onClick={handleSubmit} variant="contained">{isEdit ? 'Update' : 'Create'}</Button>
                 </DialogActions>
             </Dialog>
         </Layout>
     );
 }
-
 export default Projects;

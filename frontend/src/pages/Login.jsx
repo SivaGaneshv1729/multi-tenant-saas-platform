@@ -11,7 +11,7 @@ function Login() {
     const [formData, setFormData] = useState({ email: '', password: '', subdomain: '' });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [showPassword, setShowPassword] = useState(false); // State for toggle
+    const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
 
     const handleChange = (e) => {
@@ -48,10 +48,9 @@ function Login() {
                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
                 <Box component="form" onSubmit={handleSubmit}>
-                    {/* SUBDOMAIN INPUT */}
+                    {/* SUBDOMAIN INPUT - NO 'required' */}
                     <TextField
                         fullWidth
-                        required
                         label="Workspace Subdomain"
                         name="subdomain"
                         placeholder="e.g. acme"
@@ -64,7 +63,6 @@ function Login() {
                         helperText="Leave empty if you are a System Admin"
                     />
 
-                    {/* EMAIL INPUT */}
                     <TextField
                         fullWidth
                         required
@@ -79,13 +77,12 @@ function Login() {
                         }}
                     />
 
-                    {/* PASSWORD INPUT WITH EYE ICON */}
                     <TextField
                         fullWidth
                         required
                         label="Password"
                         name="password"
-                        type={showPassword ? 'text' : 'password'} // Toggle type
+                        type={showPassword ? 'text' : 'password'}
                         value={formData.password}
                         onChange={handleChange}
                         margin="normal"
@@ -93,11 +90,7 @@ function Login() {
                             startAdornment: <InputAdornment position="start"><Lock color="action" /></InputAdornment>,
                             endAdornment: (
                                 <InputAdornment position="end">
-                                    <IconButton
-                                        aria-label="toggle password visibility"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        edge="end"
-                                    >
+                                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
                                         {showPassword ? <VisibilityOff /> : <Visibility />}
                                     </IconButton>
                                 </InputAdornment>

@@ -9,36 +9,18 @@ import Projects from './pages/Projects';
 import ProjectDetails from './pages/ProjectDetails';
 import Users from './pages/Users';
 import Tasks from './pages/Tasks';
+import Tenants from './pages/Tenants'; // --- IMPORT NEW PAGE ---
 
-// Create Context for Toggle
 export const ColorModeContext = createContext({ toggleColorMode: () => { } });
 
 function App() {
-  // 1. Detect System Preference
-  // checks if the user prefers dark mode
   const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)');
-
-  // 2. Manage Mode State
-  // Initialize state based on system preference
   const [mode, setMode] = useState(prefersDarkMode ? 'dark' : 'light');
 
-  // Update mode if system preference changes (optional, but good UX)
-  useEffect(() => {
-    setMode(prefersDarkMode ? 'dark' : 'light');
-  }, [prefersDarkMode]);
+  useEffect(() => { setMode(prefersDarkMode ? 'dark' : 'light'); }, [prefersDarkMode]);
 
-  // 3. Memoize Theme
   const theme = useMemo(() => getTheme(mode), [mode]);
-
-  // 4. Define Toggle Function
-  const colorMode = useMemo(
-    () => ({
-      toggleColorMode: () => {
-        setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
-      },
-    }),
-    [],
-  );
+  const colorMode = useMemo(() => ({ toggleColorMode: () => setMode((prev) => (prev === 'light' ? 'dark' : 'light')) }), []);
 
   return (
     <ColorModeContext.Provider value={colorMode}>
@@ -54,6 +36,9 @@ function App() {
             <Route path="/projects/:projectId" element={<ProjectDetails />} />
             <Route path="/users" element={<Users />} />
             <Route path="/tasks" element={<Tasks />} />
+
+            {/* --- NEW ROUTE --- */}
+            <Route path="/tenants" element={<Tenants />} />
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

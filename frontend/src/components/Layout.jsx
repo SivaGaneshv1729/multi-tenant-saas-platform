@@ -1,28 +1,34 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Box, Drawer, AppBar, Toolbar, List, Typography, Divider, IconButton,
-    ListItem, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Avatar, Tooltip, useTheme
+    ListItem, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem,
+    Avatar, Tooltip, useTheme, useMediaQuery
 } from '@mui/material';
 import {
     Menu as MenuIcon, Dashboard, Folder, Assignment, Group,
     Business, AccountCircle, Logout, ChevronLeft, DarkMode, LightMode
 } from '@mui/icons-material';
 import api from '../api';
-import { ColorModeContext } from '../App'; // Import Context
+import { ColorModeContext } from '../App';
 
 const drawerWidth = 240;
 
 function Layout({ children, title, actions }) {
-    const [open, setOpen] = useState(true);
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+    const [open, setOpen] = useState(!isMobile);
     const [anchorEl, setAnchorEl] = useState(null);
+
     const navigate = useNavigate();
     const location = useLocation();
+    const colorMode = useContext(ColorModeContext);
     const user = JSON.parse(localStorage.getItem('user'));
 
-    // Access Theme & Toggle Function
-    const theme = useTheme();
-    const colorMode = useContext(ColorModeContext);
+    useEffect(() => {
+        if (isMobile) setOpen(false);
+    }, [location, isMobile]);
 
     const handleLogout = () => {
         api.post('/auth/logout');
@@ -31,9 +37,14 @@ function Layout({ children, title, actions }) {
         navigate('/login');
     };
 
+    const toggleDrawer = () => {
+        setOpen(!open);
+    };
+
     const menuItems = [
         { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard', roles: ['super_admin', 'tenant_admin', 'user'] },
-        { text: 'Tenants', icon: <Business />, path: '/dashboard', roles: ['super_admin'] },
+        // --- FIX: Point to the new Tenants page ---
+        { text: 'Tenants', icon: <Business />, path: '/tenants', roles: ['super_admin'] },
         { text: 'Projects', icon: <Folder />, path: '/projects', roles: ['tenant_admin', 'user'] },
         { text: 'My Tasks', icon: <Assignment />, path: '/tasks', roles: ['tenant_admin', 'user'] },
         { text: 'Team', icon: <Group />, path: '/users', roles: ['tenant_admin'] },
@@ -41,9 +52,9 @@ function Layout({ children, title, actions }) {
 
     return (
         <Box sx={{ display: 'flex' }}>
-            <AppBar position="absolute" open={open} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+            <AppBar position="absolute" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
                 <Toolbar sx={{ pr: '24px' }}>
-                    <IconButton edge="start" color="inherit" onClick={() => setOpen(!open)} sx={{ marginRight: '36px' }}>
+                    <IconButton edge="start" color="inherit" onClick={toggleDrawer} sx={{ marginRight: '36px' }}>
                         <MenuIcon />
                     </IconButton>
 
@@ -53,7 +64,6 @@ function Layout({ children, title, actions }) {
 
                     {actions && <Box sx={{ mr: 2 }}>{actions}</Box>}
 
-                    {/* --- THEME TOGGLE BUTTON --- */}
                     <Tooltip title="Switch Theme">
                         <IconButton onClick={colorMode.toggleColorMode} color="inherit">
                             {theme.palette.mode === 'dark' ? <LightMode /> : <DarkMode />}
@@ -75,18 +85,28 @@ function Layout({ children, title, actions }) {
                 </Toolbar>
             </AppBar>
 
-            <Drawer variant="permanent" open={open} sx={{
-                '& .MuiDrawer-paper': {
-                    position: 'relative',
-                    whiteSpace: 'nowrap',
-                    width: open ? drawerWidth : 72,
-                    transition: 'width 0.2s',
-                    boxSizing: 'border-box'
-                },
-            }}>
+            <Drawer
+                variant={isMobile ? "temporary" : "permanent"}
+                open={open}
+                onClose={isMobile ? toggleDrawer : undefined}
+                sx={{
+                    '& .MuiDrawer-paper': {
+                        position: 'relative',
+                        whiteSpace: 'nowrap',
+                        width: isMobile ? drawerWidth : (open ? drawerWidth : 72),
+                        transition: theme.transitions.create('width', {
+                            easing: theme.transitions.easing.sharp,
+                            duration: theme.transitions.duration.enteringScreen,
+                        }),
+                        boxSizing: 'border-box',
+                        overflowX: 'hidden'
+                    },
+                }}
+            >
                 <Toolbar sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', px: [1] }}>
-                    {open && <Typography variant="h6" color="primary" sx={{ flexGrow: 1, ml: 2, fontWeight: 'bold' }}>SaaS Platform</Typography>}
-                    <IconButton onClick={() => setOpen(!open)}><ChevronLeft /></IconButton>
+                    <IconButton onClick={toggleDrawer}>
+                        <ChevronLeft />
+                    </IconButton>
                 </Toolbar>
                 <Divider />
                 <List component="nav">
@@ -96,12 +116,23 @@ function Layout({ children, title, actions }) {
                                 <ListItemButton
                                     selected={location.pathname === item.path}
                                     onClick={() => navigate(item.path)}
-                                    sx={{ minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5 }}
+                                    sx={{
+                                        minHeight: 48,
+                                        justifyContent: (open && !isMobile) || isMobile ? 'initial' : 'center',
+                                        px: 2.5
+                                    }}
                                 >
-                                    <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : 'auto', justifyContent: 'center' }}>
+                                    <ListItemIcon sx={{
+                                        minWidth: 0,
+                                        mr: (open && !isMobile) || isMobile ? 3 : 'auto',
+                                        justifyContent: 'center'
+                                    }}>
                                         {item.icon}
                                     </ListItemIcon>
-                                    <ListItemText primary={item.text} sx={{ opacity: open ? 1 : 0 }} />
+                                    <ListItemText
+                                        primary={item.text}
+                                        sx={{ opacity: (open && !isMobile) || isMobile ? 1 : 0 }}
+                                    />
                                 </ListItemButton>
                             </ListItem>
                         )
@@ -109,7 +140,12 @@ function Layout({ children, title, actions }) {
                 </List>
             </Drawer>
 
-            <Box component="main" sx={{ backgroundColor: (theme) => theme.palette.mode === 'light' ? theme.palette.grey[100] : theme.palette.background.default, flexGrow: 1, height: '100vh', overflow: 'auto' }}>
+            <Box component="main" sx={{
+                backgroundColor: (theme) => theme.palette.mode === 'light' ? theme.palette.grey[100] : theme.palette.background.default,
+                flexGrow: 1,
+                height: '100vh',
+                overflow: 'auto'
+            }}>
                 <Toolbar />
                 <Box sx={{ p: 3 }}>
                     {children}
