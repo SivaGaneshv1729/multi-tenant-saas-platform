@@ -182,6 +182,7 @@ The API is fully documented using Swagger/OpenAPI.
 
 Watch the full explanation of the project architecture, code structure, and live demo here:
 
+https://vimeo.com/1151184403?fl=ip&fe=ec
 https://youtu.be/jSVTDBYMqvQ
 
 ---
