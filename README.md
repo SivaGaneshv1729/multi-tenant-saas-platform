@@ -1,4 +1,3 @@
-
 # Multi-Tenant SaaS Platform with Project & Task Management
 
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue?logo=docker)
@@ -34,25 +33,29 @@ This platform is engineered for scalability and multi-organizational support:
 ## 🛠 Technology Stack
 
 ### Frontend
-* **React.js** (v18.2.0)
-* **Redux Toolkit** (v1.9.5) - Global State Management
-* **Tailwind CSS** (v3.3.0) - Utility-first Styling
-* **Axios** (v1.4.0) - HTTP Client
+
+- **React.js** (v18.2.0)
+- **Redux Toolkit** (v1.9.5) - Global State Management
+- **Tailwind CSS** (v3.3.0) - Utility-first Styling
+- **Axios** (v1.4.0) - HTTP Client
 
 ### Backend
-* **Node.js** (v18.x)
-* **Express.js** (v4.18.2)
-* **Socket.io** (v4.7.0) - Real-time Event Handling
-* **Joi** (v17.9.0) - Request Validation
+
+- **Node.js** (v18.x)
+- **Express.js** (v4.18.2)
+- **Socket.io** (v4.7.0) - Real-time Event Handling
+- **Joi** (v17.9.0) - Request Validation
 
 ### Database & Storage
-* **PostgreSQL** (v15) - Relational Database (Schema-based Multi-tenancy)
-* **Redis** (v7) - Caching & Session Store
+
+- **PostgreSQL** (v15) - Relational Database (Schema-based Multi-tenancy)
+- **Redis** (v7) - Caching & Session Store
 
 ### DevOps & Containerization
-* **Docker** (v24.0.0)
-* **Docker Compose** (v2.18.0)
-* **Nginx** - Reverse Proxy & Load Balancing
+
+- **Docker** (v24.0.0)
+- **Docker Compose** (v2.18.0)
+- **Nginx** - Reverse Proxy & Load Balancing
 
 ---
 
@@ -61,12 +64,14 @@ This platform is engineered for scalability and multi-organizational support:
 The system utilizes a microservices-ready architecture where the client communicates with the backend via a RESTful API Gateway. The database layer implements multi-tenancy (via row-level security or separate schemas) to ensure data integrity between different organizations.
 
 ### System Architecture Diagram
-![System Architecture](./docs/system-architecture.png)
+
+![System Architecture](./docs/images/system-architecture.png)
 
 > The diagram above visualizes the flow between the Client, API Gateway, Authentication Service, and the Multi-Tenant Database Cluster.
 
 ### Database Design
-![Database ERD](./docs/database-erd.png)
+
+![Database ERD](./docs/images/database-erd.png)
 
 > The Entity-Relationship Diagram (ERD) highlights the relationships between Tenants, Users, Projects, and Tasks.
 
@@ -77,12 +82,14 @@ The system utilizes a microservices-ready architecture where the client communic
 This project is optimized for Docker. You can launch the entire stack (Frontend, Backend, Database, Redis) with a single command.
 
 ### Prerequisites
-* [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running.
-* [Git](https://git-scm.com/) installed.
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running.
+- [Git](https://git-scm.com/) installed.
 
 ### Step-by-Step Instructions
 
 **1. Clone the Repository**
+
 ```bash
 git clone [https://github.com/](https://github.com/)[your-username]/multi-tenant-saas.git
 cd multi-tenant-saas
@@ -97,7 +104,7 @@ cp .env.example .env
 
 ```
 
-*Note: The default `.env` settings are pre-configured to work out-of-the-box with Docker.*
+_Note: The default `.env` settings are pre-configured to work out-of-the-box with Docker._
 
 **3. Start the Application**
 Run the following command to build images and start containers in the background:
@@ -109,9 +116,9 @@ docker-compose up --build -d
 
 **4. Access the Application**
 
-* **Frontend Dashboard:** `http://localhost:3000`
-* **Backend API:** `http://localhost:5000`
-* **Database Access:** Port `5432`
+- **Frontend Dashboard:** `http://localhost:3000`
+- **Backend API:** `http://localhost:5000`
+- **Database Access:** Port `5432`
 
 ---
 
@@ -149,14 +156,14 @@ docker-compose exec backend npm run db:reset
 
 Essential variables required for the application.
 
-| Variable | Description | Default (Docker) |
-| --- | --- | --- |
-| `NODE_ENV` | Environment mode | `development` |
-| `PORT` | Backend server port | `5000` |
-| `DATABASE_URL` | Postgres Connection String | `postgresql://user:pass@db:5432/saas_db` |
-| `JWT_SECRET` | Token encryption key | `change_this_secret` |
-| `TENANT_ID_HEADER` | Header key for identifying tenants | `x-tenant-id` |
-| `REDIS_URL` | Redis Connection String | `redis://redis:6379` |
+| Variable           | Description                        | Default (Docker)                         |
+| ------------------ | ---------------------------------- | ---------------------------------------- |
+| `NODE_ENV`         | Environment mode                   | `development`                            |
+| `PORT`             | Backend server port                | `5000`                                   |
+| `DATABASE_URL`     | Postgres Connection String         | `postgresql://user:pass@db:5432/saas_db` |
+| `JWT_SECRET`       | Token encryption key               | `change_this_secret`                     |
+| `TENANT_ID_HEADER` | Header key for identifying tenants | `x-tenant-id`                            |
+| `REDIS_URL`        | Redis Connection String            | `redis://redis:6379`                     |
 
 ---
 
@@ -164,17 +171,17 @@ Essential variables required for the application.
 
 The API is fully documented using Swagger/OpenAPI.
 
-**Documentation URL:** `http://localhost:5000/api-docs` *(Available after starting server)*
+**Documentation URL:** `http://localhost:5000/api-docs` _(Available after starting server)_
 
 ### Core Endpoints
 
-| Method | Endpoint | Description | Access |
-| --- | --- | --- | --- |
-| `POST` | `/api/v1/tenants/register` | Register a new Organization | Public |
-| `POST` | `/api/v1/auth/login` | User Login | Public |
-| `GET` | `/api/v1/projects` | Get projects for current tenant | **Private** |
-| `POST` | `/api/v1/tasks` | Create a task in a project | **Private** |
-| `GET` | `/api/v1/users` | List users in the organization | **Admin** |
+| Method | Endpoint                   | Description                     | Access      |
+| ------ | -------------------------- | ------------------------------- | ----------- |
+| `POST` | `/api/v1/tenants/register` | Register a new Organization     | Public      |
+| `POST` | `/api/v1/auth/login`       | User Login                      | Public      |
+| `GET`  | `/api/v1/projects`         | Get projects for current tenant | **Private** |
+| `POST` | `/api/v1/tasks`            | Create a task in a project      | **Private** |
+| `GET`  | `/api/v1/users`            | List users in the organization  | **Admin**   |
 
 ---
 
